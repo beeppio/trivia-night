@@ -7,6 +7,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { MediaUpload } from '@/components/GameMedia';
 import { emptyQuestion, emptyRound, type GameQuestion, type LocalGame } from '@/lib/local-games';
+import { Trash2 } from 'lucide-react';
 
 function CountSelect({ id, label, count, maximum, onChange }: { id: string; label: string; count: number; maximum: number; onChange: (count: number) => void }) {
   return <Select value={String(count)} onValueChange={value => onChange(Number(value))}>
@@ -17,9 +18,10 @@ function CountSelect({ id, label, count, maximum, onChange }: { id: string; labe
   </Select>;
 }
 
-export function NewGameDialog({ onClose, onSave, initialGame }: { onClose: () => void; onSave: (game: LocalGame) => Promise<boolean>; initialGame?: LocalGame }) {
+export function NewGameDialog({ onClose, onSave, onDelete, initialGame }: { onClose: () => void; onSave: (game: LocalGame) => Promise<boolean>; onDelete: (id: string) => Promise<boolean>; initialGame?: LocalGame }) {
   const [game, setGame] = useState<LocalGame>(() => initialGame || { id: crypto.randomUUID(), title: '', rounds: [emptyRound()] });
   const [saving, setSaving] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
   const updateQuestion = (roundId: string, questionId: string, update: Partial<GameQuestion>) => setGame(previous => ({ ...previous, rounds: previous.rounds.map(round => round.id === roundId ? { ...round, questions: round.questions.map(question => question.id === questionId ? { ...question, ...update } : question) } : round) }));
   const resizeRounds = (count: number) => {
     if (count < game.rounds.length && !window.confirm('Remove the extra rounds and their questions?')) return;
@@ -30,10 +32,15 @@ export function NewGameDialog({ onClose, onSave, initialGame }: { onClose: () =>
     if (count < round.questions.length && !window.confirm('Remove the extra questions and their attachments?')) return;
     setGame(previous => ({ ...previous, rounds: previous.rounds.map(item => item.id === roundId ? { ...item, questions: count <= item.questions.length ? item.questions.slice(0, count) : [...item.questions, ...Array.from({ length: count - item.questions.length }, emptyQuestion)] } : item) }));
   };
+  const removeGame = async () => {
+    if (!initialGame) return;
+    setSaving(true);
+    try { if (await onDelete(initialGame.id)) onClose(); }
+    finally { setSaving(false); }
+  };
   const submit = async (event: FormEvent) => {
     event.preventDefault();
-    if (!game.title.trim() || game.rounds.some(round => round.questions.some(question => !question.text.trim() || !question.answer.trim()))) { toast.error('Enter a game name and every question and answer.'); return; }
-    const bytes = game.rounds.flatMap(round => round.questions).flatMap(question => [...question.questionMedia, ...question.answerMedia]).reduce((total, media) => total + media.file.size, 0);
+    const bytes = game.rounds.reduce((total, round) => total + (round.music?.file.size || 0) + round.questions.flatMap(question => [...question.questionMedia, ...question.answerMedia]).reduce((subtotal, media) => subtotal + media.file.size, 0), 0);
     if (bytes > 100 * 1024 * 1024) { toast.error('Attachments must total 100 MB or less per game.'); return; }
     setSaving(true);
     try {
@@ -45,24 +52,27 @@ export function NewGameDialog({ onClose, onSave, initialGame }: { onClose: () =>
       <DialogHeader><DialogTitle className="text-2xl">{initialGame ? 'Edit game' : 'Create a new game'}</DialogTitle></DialogHeader>
       <form onSubmit={submit} className="mt-4 space-y-7">
         <fieldset disabled={saving} className="space-y-7 disabled:opacity-60">
-          <div className="grid gap-5 sm:grid-cols-[2fr_1fr]">
-            <Input id="game-name" aria-label="Game name" value={game.title} onChange={event => setGame(previous => ({ ...previous, title: event.target.value }))} placeholder="Game name" maxLength={80} required className="h-12 rounded-xl bg-background placeholder:text-muted-foreground" />
+          <div className="grid gap-5 rounded-2xl border border-primary/30 bg-primary/10 p-5 sm:grid-cols-[2fr_1fr]">
+            <Input id="game-name" aria-label="Game name" value={game.title} onChange={event => setGame(previous => ({ ...previous, title: event.target.value }))} placeholder="Game name" maxLength={80} className="h-12 rounded-xl bg-background placeholder:text-muted-foreground" />
             <CountSelect id="round-count" label="Number of rounds" count={game.rounds.length} maximum={10} onChange={resizeRounds} />
           </div>
-          {game.rounds.map((round, roundIndex) => <section key={round.id} className="space-y-6 border-t border-border pt-6">
-            <div className="grid items-end gap-5 sm:grid-cols-[2fr_1fr]">
-              <Input id={`round-${round.id}`} aria-label={`Round ${roundIndex + 1} name`} placeholder={`Round ${roundIndex + 1} name`} value={round.name} maxLength={80} onChange={event => setGame(previous => ({ ...previous, rounds: previous.rounds.map(item => item.id === round.id ? { ...item, name: event.target.value } : item) }))} className="h-12 rounded-xl bg-background placeholder:text-muted-foreground" />
+          {game.rounds.map((round, roundIndex) => <section key={round.id} className="space-y-6 rounded-2xl border border-border bg-secondary/15 p-4 sm:p-6">
+            <div className="grid items-start gap-5 sm:grid-cols-[2fr_1fr]">
+              <div className="space-y-3">
+                <Input id={`round-${round.id}`} aria-label={`Round ${roundIndex + 1} name`} placeholder={`Round ${roundIndex + 1} name`} value={round.name} maxLength={80} onChange={event => setGame(previous => ({ ...previous, rounds: previous.rounds.map(item => item.id === round.id ? { ...item, name: event.target.value } : item) }))} className="h-12 rounded-xl bg-background placeholder:text-muted-foreground" />
+                <MediaUpload id={`music-${round.id}`} label={`Add music to round ${roundIndex + 1}`} musicOnly media={round.music ? [round.music] : []} onChange={media => setGame(previous => ({ ...previous, rounds: previous.rounds.map(item => item.id === round.id ? { ...item, music: media[0] } : item) }))} />
+              </div>
               <CountSelect id={`count-${round.id}`} label="Number of questions" count={round.questions.length} maximum={20} onChange={count => resizeQuestions(round.id, count)} />
             </div>
-            {round.questions.map((question, questionIndex) => <section key={question.id} className="space-y-5 rounded-2xl border border-border bg-secondary/20 p-4 sm:p-5">
+            {round.questions.map((question, questionIndex) => <section key={question.id} className="space-y-5 border-t-2 border-dotted border-primary/40 pt-6">
               <h3 className="font-semibold text-primary">Question {questionIndex + 1}</h3>
               <div className="grid gap-6 md:grid-cols-2">
                 <div className="space-y-3">
-                  <Textarea id={`question-${question.id}`} aria-label={`Round ${roundIndex + 1}, question ${questionIndex + 1}`} value={question.text} onChange={event => updateQuestion(round.id, question.id, { text: event.target.value })} placeholder="Question" required maxLength={4000} className="min-h-28 rounded-xl bg-background placeholder:text-muted-foreground" />
+                  <Textarea id={`question-${question.id}`} aria-label={`Round ${roundIndex + 1}, question ${questionIndex + 1}`} value={question.text} onChange={event => updateQuestion(round.id, question.id, { text: event.target.value })} placeholder="Question" maxLength={4000} className="min-h-28 rounded-xl bg-background placeholder:text-muted-foreground" />
                   <MediaUpload id={`question-files-${question.id}`} label={`Add media to round ${roundIndex + 1}, question ${questionIndex + 1}`} media={question.questionMedia} onChange={questionMedia => updateQuestion(round.id, question.id, { questionMedia })} />
                 </div>
                 <div className="space-y-3">
-                  <Textarea id={`answer-${question.id}`} aria-label={`Answer to round ${roundIndex + 1}, question ${questionIndex + 1}`} value={question.answer} onChange={event => updateQuestion(round.id, question.id, { answer: event.target.value })} placeholder="Answer" required maxLength={4000} className="min-h-28 rounded-xl bg-background placeholder:text-muted-foreground" />
+                  <Textarea id={`answer-${question.id}`} aria-label={`Answer to round ${roundIndex + 1}, question ${questionIndex + 1}`} value={question.answer} onChange={event => updateQuestion(round.id, question.id, { answer: event.target.value })} placeholder="Answer" maxLength={4000} className="min-h-28 rounded-xl bg-background placeholder:text-muted-foreground" />
                   <MediaUpload id={`answer-files-${question.id}`} label={`Add media to answer ${questionIndex + 1} in round ${roundIndex + 1}`} media={question.answerMedia} onChange={answerMedia => updateQuestion(round.id, question.id, { answerMedia })} />
                 </div>
               </div>
@@ -70,8 +80,19 @@ export function NewGameDialog({ onClose, onSave, initialGame }: { onClose: () =>
             </section>)}
           </section>)}
         </fieldset>
-        <div className="sticky -bottom-5 flex justify-end gap-3 border-t border-border bg-card py-4 sm:-bottom-8"><Button type="button" variant="outline" disabled={saving} className="rounded-xl" onClick={onClose}>Cancel</Button><Button type="submit" disabled={saving} className="rounded-xl">{saving ? 'Saving…' : 'Save game'}</Button></div>
+        <div className="sticky -bottom-5 flex flex-wrap items-center justify-end gap-3 border-t border-border bg-card py-4 sm:-bottom-8">
+          {initialGame && <Button type="button" variant="ghost" size="icon" disabled={saving} aria-label="Delete game" className="h-9 w-9 rounded-xl text-destructive hover:bg-destructive/10 hover:text-destructive" onClick={() => setConfirmDelete(true)}><Trash2 className="h-4 w-4" /></Button>}
+          <Button type="button" variant="outline" disabled={saving} className="rounded-xl" onClick={onClose}>Cancel</Button>
+          <Button type="submit" disabled={saving} className="rounded-xl">{saving ? 'Saving…' : 'Save game'}</Button>
+        </div>
       </form>
+      <Dialog open={confirmDelete} onOpenChange={setConfirmDelete}>
+        <DialogContent aria-describedby={undefined} className="rounded-2xl bg-card">
+          <DialogHeader><DialogTitle>Delete this game?</DialogTitle></DialogHeader>
+          <p className="text-sm leading-6 text-muted-foreground">This removes the saved game and all its attachments from this browser. This cannot be undone.</p>
+          <div className="flex justify-end gap-3"><Button variant="outline" disabled={saving} className="rounded-xl" onClick={() => setConfirmDelete(false)}>Keep game</Button><Button disabled={saving} className="rounded-xl bg-destructive hover:bg-destructive/90" onClick={removeGame}>{saving ? 'Deleting…' : 'Delete game'}</Button></div>
+        </DialogContent>
+      </Dialog>
     </DialogContent>
   </Dialog>;
 }

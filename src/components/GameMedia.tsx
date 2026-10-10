@@ -22,7 +22,7 @@ export function GameMediaList({ media }: { media: GameMedia[] }) {
   return <div className="space-y-4">{media.map(item => <MediaItem key={item.id} media={item} />)}</div>;
 }
 
-export function MediaUpload({ id, label, media, onChange }: { id: string; label: string; media: GameMedia[]; onChange: (media: GameMedia[]) => void }) {
+export function MediaUpload({ id, label, media, onChange, musicOnly = false }: { id: string; label: string; media: GameMedia[]; onChange: (media: GameMedia[]) => void; musicOnly?: boolean }) {
   const upload = (files: FileList | null) => {
     if (!files) return;
     const additions: GameMedia[] = [];
@@ -30,14 +30,15 @@ export function MediaUpload({ id, label, media, onChange }: { id: string; label:
       const extension = file.name.split('.').pop()?.toLowerCase();
       const kind = extension === 'mp4' ? 'video' : extension === 'mp3' ? 'audio' : extension === 'pdf' ? 'pdf' : ['png', 'jpg', 'jpeg'].includes(extension || '') ? 'image' : null;
       const expectedMime = extension === 'mp4' ? 'video/mp4' : extension === 'mp3' ? 'audio/mpeg' : extension === 'pdf' ? 'application/pdf' : extension === 'png' ? 'image/png' : 'image/jpeg';
+      if (musicOnly && kind !== 'audio') { toast.error('Choose an MP3 file for round music.'); continue; }
       if (!kind || (file.type && file.type !== expectedMime)) { toast.error(`${file.name}: use MP4, MP3, PNG, JPG, or PDF.`); continue; }
       if (file.size > 20 * 1024 * 1024) { toast.error(`${file.name}: maximum file size is 20 MB.`); continue; }
       additions.push({ id: crypto.randomUUID(), name: file.name, kind, file });
     }
-    onChange([...media, ...additions]);
+    onChange(musicOnly ? additions.length ? additions.slice(-1) : media : [...media, ...additions]);
   };
   return <div className="space-y-3">
-    <label htmlFor={id} className="inline-flex cursor-pointer rounded-sm text-xs font-medium text-primary underline underline-offset-4 hover:text-primary/80 focus-within:outline focus-within:outline-2 focus-within:outline-offset-4 focus-within:outline-ring">Add media<input id={id} aria-label={label} type="file" accept=".mp4,.mp3,.png,.jpg,.jpeg,.pdf" multiple className="sr-only" onChange={event => { upload(event.target.files); event.target.value = ''; }} /></label>
+    <label htmlFor={id} className="inline-flex cursor-pointer rounded-sm text-xs font-medium text-primary underline underline-offset-4 hover:text-primary/80 focus-within:outline focus-within:outline-2 focus-within:outline-offset-4 focus-within:outline-ring">{musicOnly ? 'Add round music' : 'Add media'}<input id={id} aria-label={label} type="file" accept={musicOnly ? '.mp3' : '.mp4,.mp3,.png,.jpg,.jpeg,.pdf'} multiple={!musicOnly} className="sr-only" onChange={event => { upload(event.target.files); event.target.value = ''; }} /></label>
     {media.map(item => <div key={item.id} className="rounded-xl border border-border bg-background p-3"><div className="mb-2 flex justify-end"><Button type="button" variant="ghost" size="icon" aria-label={`Remove ${item.name}`} className="h-8 w-8 rounded-lg" onClick={() => onChange(media.filter(other => other.id !== item.id))}><X className="h-4 w-4" /></Button></div><MediaItem media={item} /></div>)}
   </div>;
 }

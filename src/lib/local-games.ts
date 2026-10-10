@@ -1,6 +1,6 @@
 export type GameMedia = { id: string; name: string; kind: 'image' | 'audio' | 'video' | 'pdf'; file: Blob };
 export type GameQuestion = { id: string; text: string; answer: string; hostNotes?: string; questionMedia: GameMedia[]; answerMedia: GameMedia[] };
-export type GameRound = { id: string; name: string; questions: GameQuestion[] };
+export type GameRound = { id: string; name: string; music?: GameMedia; questions: GameQuestion[] };
 export type LocalGame = { id: string; title: string; rounds: GameRound[] };
 
 export const emptyQuestion = (): GameQuestion => ({ id: crypto.randomUUID(), text: '', answer: '', questionMedia: [], answerMedia: [] });
@@ -32,6 +32,16 @@ export async function saveGame(game: LocalGame): Promise<void> {
   return new Promise((resolve, reject) => {
     const transaction = database.transaction('games', 'readwrite');
     transaction.objectStore('games').put(game);
+    transaction.oncomplete = () => { database.close(); resolve(); };
+    transaction.onabort = () => { database.close(); reject(transaction.error); };
+  });
+}
+
+export async function deleteGame(id: string): Promise<void> {
+  const database = await openDatabase();
+  return new Promise((resolve, reject) => {
+    const transaction = database.transaction('games', 'readwrite');
+    transaction.objectStore('games').delete(id);
     transaction.oncomplete = () => { database.close(); resolve(); };
     transaction.onabort = () => { database.close(); reject(transaction.error); };
   });

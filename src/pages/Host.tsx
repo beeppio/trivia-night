@@ -9,7 +9,8 @@ import { NewGameDialog } from '@/components/NewGameDialog';
 import { GameMediaList } from '@/components/GameMedia';
 import { HostPlayers } from '@/components/HostPlayers';
 import { PREVIEW_ROOM } from '@/lib/preview-data';
-import { loadGames, readLegacyDrafts, saveGame, type LocalGame } from '@/lib/local-games';
+import { loadGames, readLegacyDrafts, saveGame, deleteGame, type LocalGame } from '@/lib/local-games';
+import { useRoundMusic } from '@/hooks/use-round-music';
 
 type Stage = 'lobby' | 'round' | 'question' | 'closed' | 'reveal' | 'ended';
 
@@ -22,6 +23,7 @@ export default function Host() {
   const [stage, setStage] = useState<Stage>('lobby');
   const [index, setIndex] = useState(0);
   const [confirmEnd, setConfirmEnd] = useState(false);
+  const music = useRoundMusic();
 
   useEffect(() => {
     let cancelled = false;
@@ -50,12 +52,21 @@ export default function Host() {
       return true;
     } catch { toast.error('Unable to save. Browser storage may be full or unavailable.'); return false; }
   };
+  const removeGame = async (id: string) => {
+    try {
+      await deleteGame(id);
+      setGames(previous => previous.filter(game => game.id !== id));
+      toast.success('Game deleted from this browser');
+      return true;
+    } catch { toast.error('Unable to delete the game. Please try again.'); return false; }
+  };
   const questions = activeGame?.rounds.flatMap((round, roundIndex) => round.questions.map((question, questionIndex) => ({ ...question, roundName: round.name, roundIndex, questionIndex }))) || [];
   const question = questions[index];
   const playable = (game: LocalGame) => game.rounds.every(round => round.questions.length > 0 && round.questions.every(item => item.text.trim() && item.answer.trim()));
-  const startGame = (game: LocalGame) => { setActiveGame(game); setIndex(0); setStage('round'); };
+  const startGame = (game: LocalGame) => { setActiveGame(game); setIndex(0); setStage('round'); music.switchTrack(game.rounds[0].music); };
   const changeQuestion = (next: number) => {
     const differentRound = questions[next].roundIndex !== question.roundIndex;
+    if (differentRound) music.switchTrack(activeGame?.rounds[questions[next].roundIndex].music);
     setIndex(next);
     setStage(differentRound ? 'round' : 'question');
   };
@@ -82,7 +93,7 @@ export default function Host() {
           </div> : <div className="py-5">
             <div className="mb-4 flex items-center justify-between"><h2 className="text-lg font-semibold">Your games</h2><Button variant="outline" className="rounded-xl" onClick={() => setEditor({})}><Plus className="mr-2 h-4 w-4" /> New game</Button></div>
             <div className="space-y-4">{games.map(game => <article key={game.id} className="rounded-2xl border border-border bg-secondary/30 p-5">
-              <div className="flex flex-wrap items-center justify-between gap-4"><div className="min-w-0"><h3 className="break-words text-lg font-semibold">{game.title}</h3><p className="mt-2 text-xs text-muted-foreground">{game.rounds.length} rounds · {game.rounds.reduce((total, round) => total + round.questions.length, 0)} questions</p></div><div className="flex gap-2"><Button variant="outline" className="rounded-xl" onClick={() => setEditor({ game })}><Pencil className="mr-2 h-4 w-4" /> Edit</Button><Button className="rounded-xl" disabled={!playable(game)} onClick={() => startGame(game)}><Play className="mr-2 h-4 w-4" /> Start game</Button></div></div>
+              <div className="flex flex-wrap items-center justify-between gap-4"><div className="min-w-0"><h3 className="break-words text-lg font-semibold">{game.title || 'Untitled game'}</h3><p className="mt-2 text-xs text-muted-foreground">{game.rounds.length} rounds · {game.rounds.reduce((total, round) => total + round.questions.length, 0)} questions</p></div><div className="flex gap-2"><Button variant="outline" className="rounded-xl" onClick={() => setEditor({ game })}><Pencil className="mr-2 h-4 w-4" /> Edit</Button><Button className="rounded-xl" disabled={!playable(game)} onClick={() => startGame(game)}><Play className="mr-2 h-4 w-4" /> Start game</Button></div></div>
               {!playable(game) && <p className="mt-3 text-xs text-muted-foreground">Add questions and answers in Edit before starting.</p>}
             </article>)}</div>
             <p className="mt-5 text-xs leading-5 text-muted-foreground">Saved on this device. Start game runs locally on this dashboard; player and display previews are not connected.</p>
@@ -106,11 +117,12 @@ export default function Host() {
           <section className="panel p-5"><p className="eyebrow">PREVIEW ROOM CODE</p><div className="mt-3 flex items-center justify-between"><span className="display-font text-4xl font-bold tracking-[.15em] text-primary">{PREVIEW_ROOM}</span><Button variant="ghost" size="icon" aria-label="Copy preview room code" className="rounded-xl" onClick={copyCode}><Copy className="h-4 w-4" /></Button></div><p className="mt-3 text-xs text-muted-foreground">Not a live room · sample code only</p></section>
           <HostPlayers />
           <section className="panel p-5"><p className="eyebrow">TIMER LAYOUT</p><p className="display-font my-4 text-center text-6xl font-bold tabular-nums">00:30</p><p className="text-center text-xs leading-5 text-muted-foreground">Static preview. Synchronized timers are not connected yet.</p></section>
+          {activeGame && stage !== 'ended' && <section className="panel space-y-4 p-5"><h2 className="font-semibold">Round music</h2><p className="break-words text-xs text-muted-foreground">{activeGame.rounds[question.roundIndex].music?.name || 'No music for this round'}</p><Button variant="outline" className="w-full rounded-xl" onClick={() => music.toggleMusic(activeGame.rounds[question.roundIndex].music)}>{music.enabled ? 'Mute music' : 'Enable music'}</Button><label className="flex items-center gap-3 text-xs text-muted-foreground">Volume<input aria-label="Round music volume" type="range" min="0" max="1" step="0.05" value={music.volume} onChange={event => music.changeVolume(Number(event.target.value))} className="w-full accent-primary" /></label></section>}
           <Button variant="outline" className="w-full rounded-xl border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive" disabled={stage === 'lobby' || stage === 'ended'} onClick={() => setConfirmEnd(true)}>End game</Button>
         </aside>
       </div>
     </main>
-    {editor && <NewGameDialog initialGame={editor.game} onClose={() => setEditor(null)} onSave={persistGame} />}
-    <Dialog open={confirmEnd} onOpenChange={setConfirmEnd}><DialogContent className="rounded-2xl"><DialogHeader><DialogTitle>End this game?</DialogTitle></DialogHeader><p className="text-sm text-muted-foreground">This ends the local walkthrough. Your saved questions and files will be kept.</p><div className="mt-4 flex justify-end gap-3"><Button variant="outline" className="rounded-xl" onClick={() => setConfirmEnd(false)}>Keep playing</Button><Button className="rounded-xl bg-destructive hover:bg-destructive/90" onClick={() => { setStage('ended'); setConfirmEnd(false); }}>End game</Button></div></DialogContent></Dialog>
+    {editor && <NewGameDialog initialGame={editor.game} onClose={() => setEditor(null)} onSave={persistGame} onDelete={removeGame} />}
+    <Dialog open={confirmEnd} onOpenChange={setConfirmEnd}><DialogContent className="rounded-2xl"><DialogHeader><DialogTitle>End this game?</DialogTitle></DialogHeader><p className="text-sm text-muted-foreground">This ends the local walkthrough. Your saved questions and files will be kept.</p><div className="mt-4 flex justify-end gap-3"><Button variant="outline" className="rounded-xl" onClick={() => setConfirmEnd(false)}>Keep playing</Button><Button className="rounded-xl bg-destructive hover:bg-destructive/90" onClick={() => { music.switchTrack(); setStage('ended'); setConfirmEnd(false); }}>End game</Button></div></DialogContent></Dialog>
   </PartyLayout>;
 }
