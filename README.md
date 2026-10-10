@@ -8,9 +8,9 @@ This is an interactive interface foundation, not a working multiplayer game. Eve
 
 ### Routes
 
-- `/`: responsive homepage with host/join actions, how-to-play dialog, and party/Halloween theme selection.
+- `/`: centered join instructions with the placeholder player address `placeholder.com/play`, sample room code `Q7K2M`, and party/Halloween theme selection. No promotional sections or hero graphic.
 - `/host`: local host walkthrough with lobby, round introduction, example questions, local reveal controls, sample leaderboard, replay, question navigation, and end confirmation.
-- `/join`: validated six-digit sample room code and nickname form. Only preview code `482913` is supported.
+- `/join` and `/play`: validated five-character alphanumeric sample room code and nickname form. Only preview code `Q7K2M` is supported.
 - `/player/:roomCode`: mobile lobby, example multiple-choice selection, and local confirmation. Answers are not saved or scored.
 - `/display/:roomCode`: TV-friendly lobby. Add `?view=question` or `?view=leaderboard` to inspect other public layouts. Fullscreen uses the browser Fullscreen API where available.
 
@@ -24,8 +24,8 @@ Host, player, and display previews are independent. Refresh resets walkthrough s
 - `src/pages/Join.tsx`: sample join form and client-side input validation.
 - `src/pages/Player.tsx`: mobile player walkthrough.
 - `src/pages/Display.tsx`: public display layouts and fullscreen action.
-- `src/components/PartyLayout.tsx`: branding, navigation, instructions dialog, theme provider, and preview notices.
-- `src/components/PartyArtwork.tsx`: original, lightweight SVG hero artwork; no external image asset required.
+- `src/components/PartyLayout.tsx`: branding, practical navigation, theme provider, and preview notices.
+- `src/components/PartyArtwork.tsx`: unused original SVG artwork, no longer rendered on the homepage or public lobby.
 - `src/components/QuestionCard.tsx`: reusable public question and answer-choice presentation.
 - `src/components/Leaderboard.tsx`: sample ranking presentation with tied ranks.
 - `src/lib/preview-data.ts`: public example questions and simulated players only.

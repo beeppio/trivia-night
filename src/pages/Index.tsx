@@ -1,9 +1,34 @@
 import { Link } from 'react-router-dom';
-import { ArrowRight, Check, Gamepad2, Monitor, Radio, SlidersHorizontal, Smartphone, Sparkles, Users, Zap } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { PartyLayout, HowToPlay } from '@/components/PartyLayout';
-import { PartyArtwork } from '@/components/PartyArtwork';
+import { PartyLayout } from '@/components/PartyLayout';
+import { PREVIEW_ROOM, PLAYER_URL } from '@/lib/preview-data';
 
 export default function Index() {
-  return <PartyLayout><main className="mx-auto max-w-7xl px-5 sm:px-8"><section className="grid items-center gap-2 pb-7 pt-12 lg:grid-cols-[1.08fr_1fr] lg:pb-10 lg:pt-16"><div className="enter"><span className="inline-flex items-center gap-2 rounded-full border border-primary/25 bg-primary/10 px-3.5 py-2 text-[11px] font-semibold tracking-[.14em] text-primary"><Sparkles className="h-3.5 w-3.5" /> YOUR GAME NIGHT, UPGRADED</span><h1 className="mt-6 text-5xl font-bold leading-[1.08] tracking-[-.055em] sm:text-6xl lg:text-[76px]">Big questions.<br />Bigger <span className="text-primary">bragging<br className="hidden lg:block" /> rights.</span></h1><p className="mt-5 max-w-md text-base leading-7 text-muted-foreground">Bring your people. Bring your weird knowledge.<br className="hidden sm:block" /> Turn any night into a trivia night worth talking about.</p><div className="mt-7 flex flex-wrap gap-3"><Button asChild className="party-button"><Link to="/host"><Zap className="mr-2 h-4 w-4" /> Host a game <ArrowRight className="ml-4 h-4 w-4" /></Link></Button><Button asChild variant="outline" className="party-button bg-card"><Link to="/join"><Gamepad2 className="mr-2 h-4 w-4" /> Join a game</Link></Button></div><div className="mt-6 flex flex-wrap gap-x-5 gap-y-2 text-xs text-muted-foreground"><span className="flex items-center gap-1.5"><Check className="h-3.5 w-3.5 text-[hsl(var(--mint))]" /> No app downloads</span><span className="flex items-center gap-1.5"><Check className="h-3.5 w-3.5 text-[hsl(var(--mint))]" /> Made for your crew</span><span className="flex items-center gap-1.5"><Check className="h-3.5 w-3.5 text-[hsl(var(--mint))]" /> Free to play</span></div></div><div className="enter mx-auto w-full max-w-lg lg:max-w-none" style={{ animationDelay: '100ms' }}><PartyArtwork /></div></section><div className="mb-10 flex flex-wrap items-center justify-center gap-x-9 gap-y-3 border-y border-border/70 py-5 text-xs font-medium text-muted-foreground"><span className="flex items-center gap-2"><Users className="h-4 w-4 text-primary" /> One host. The whole crew.</span><span className="flex items-center gap-2"><Smartphone className="h-4 w-4 text-accent" /> Your phone is your controller</span><span className="flex items-center gap-2"><Monitor className="h-4 w-4 text-[hsl(var(--mint))]" /> Built for the big screen</span></div><section className="pb-12"><div className="mb-5 flex items-end justify-between gap-4"><div><p className="eyebrow mb-2">PICK YOUR SIDE</p><h2 className="text-2xl font-bold tracking-tight">Every great night starts here.</h2></div><HowToPlay><button className="hidden items-center gap-2 text-sm text-muted-foreground hover:text-foreground sm:flex">How it works <ArrowRight className="h-4 w-4" /></button></HowToPlay></div><div className="grid gap-5 md:grid-cols-2"><Link to="/host" className="group panel relative overflow-hidden p-6 transition-colors hover:border-primary/60 sm:p-7"><div className="mb-6 flex items-center justify-between"><span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-primary/15 text-primary"><SlidersHorizontal className="h-6 w-6" /></span><span className="rounded-full bg-primary/10 px-3 py-1.5 text-[10px] font-bold tracking-wider text-primary">THE MASTER OF CEREMONIES</span></div><h3 className="text-2xl font-bold">You run the show.</h3><p className="mt-2 max-w-sm text-sm leading-6 text-muted-foreground">Your questions, your rules, your questionable sense of humor. Take the host seat and make it a night.</p><div className="mt-7 flex items-center justify-between"><span className="text-sm font-semibold text-primary">Host a game</span><ArrowRight className="h-5 w-5 text-primary transition-transform group-hover:translate-x-1" /></div></Link><Link to="/join" className="group panel p-6 transition-colors hover:border-accent/60 sm:p-7"><div className="mb-6 flex items-center justify-between"><span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-accent/15 text-accent"><Gamepad2 className="h-6 w-6" /></span><span className="rounded-full bg-accent/10 px-3 py-1.5 text-[10px] font-bold tracking-wider text-accent">THE KNOW-IT-ALL (PROBABLY)</span></div><h3 className="text-2xl font-bold">Bring your A-game.</h3><p className="mt-2 max-w-sm text-sm leading-6 text-muted-foreground">Grab the room code, pick a nickname, and get ready. All you need is your phone and a little confidence.</p><div className="mt-7 flex items-center justify-between"><span className="text-sm font-semibold text-accent">Join a game</span><ArrowRight className="h-5 w-5 text-accent transition-transform group-hover:translate-x-1" /></div></Link></div></section><section className="mb-12 flex flex-col items-center justify-between gap-6 rounded-2xl border border-border bg-secondary/30 p-6 sm:flex-row sm:px-8"><div className="flex items-center gap-4"><span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-[hsl(var(--mint)/.1)] text-[hsl(var(--mint))]"><Radio className="h-5 w-5" /></span><div><h3 className="text-base font-semibold">Three screens. One unforgettable night.</h3><p className="mt-1 text-sm text-muted-foreground">A host in control, a big-screen moment, and everyone in on the fun.</p></div></div><Button asChild variant="outline" className="shrink-0 rounded-xl bg-card"><Link to="/display/482913">Preview the big screen <ArrowRight className="ml-2 h-4 w-4" /></Link></Button></section></main></PartyLayout>;
+  return (
+    <PartyLayout>
+      <main className="flex min-h-[calc(100svh-190px)] items-center justify-center px-5 py-16">
+        <section className="enter w-full max-w-2xl text-center">
+          <h1 className="text-4xl font-bold tracking-tight sm:text-6xl">Join the game</h1>
+          <p className="mt-6 text-base leading-7 text-muted-foreground sm:text-lg">
+            On your phone, go to
+          </p>
+          <p className="mt-2 display-font text-2xl font-semibold text-primary sm:text-3xl">
+            {PLAYER_URL}
+          </p>
+          <p className="mt-6 text-base text-muted-foreground">Enter the room code below and choose a nickname.</p>
+          <div className="mx-auto mt-8 w-fit rounded-2xl border border-primary/30 bg-card px-7 py-6 sm:px-12 sm:py-8">
+            <p className="eyebrow">Room code</p>
+            <p className="display-font mt-3 pl-[.15em] text-5xl font-bold tracking-[.15em] text-primary sm:text-7xl" aria-label={`Room code ${PREVIEW_ROOM.split('').join(' ')}`}>
+              {PREVIEW_ROOM}
+            </p>
+          </div>
+          <div className="mt-8 flex flex-wrap justify-center gap-3">
+            <Button asChild className="party-button"><Link to="/play">Enter code</Link></Button>
+            <Button asChild variant="outline" className="party-button bg-card"><Link to="/host">Host dashboard</Link></Button>
+          </div>
+          <p className="mt-6 text-xs leading-5 text-muted-foreground">Preview code only. The website address is a placeholder; live rooms are not connected yet.</p>
+        </section>
+      </main>
+    </PartyLayout>
+  );
 }

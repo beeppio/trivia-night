@@ -1,4 +1,5 @@
-export const PREVIEW_ROOM = '482913';
+export const PREVIEW_ROOM = 'Q7K2M';
+export const PLAYER_URL = 'placeholder.com/play';
 
 // Public sample content only. Production questions will be delivered by authorized backend functions.
 export const previewQuestions = [
