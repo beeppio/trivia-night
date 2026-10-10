@@ -43,6 +43,7 @@ export function YouTubeMedia({ media, startedAt, pausedAt, soundEnabled, volume,
     if (!ready || !player.current) return;
     player.current.setVolume(volume * 100);
     if (soundEnabled) player.current.unMute(); else player.current.mute();
+    if (soundEnabled && startedAt !== null && pausedAt === null && !clipEnded) player.current.playVideo();
   }, [ready, soundEnabled, volume]);
   useEffect(() => {
     const video = player.current;

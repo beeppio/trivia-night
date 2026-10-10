@@ -32,7 +32,10 @@ function QuestionMediaItem({ media, imagesRevealed, videoStartedAt, pausedAt = n
     setDuration(Math.max(0, end - start));
     setElapsed(Math.max(0, player.currentTime - start));
     if (player.currentTime >= end) {
-      if (loop && videoStartedAt && pausedAt === null) { player.currentTime = start; void player.play().catch(() => setBlocked(true)); }
+      if (loop && videoStartedAt && pausedAt === null) { player.currentTime = start; void player.play().then(() => setBlocked(false)).catch(error => {
+        console.warn('[tv-media] Playback blocked', { mediaId: media.id, reason: error instanceof Error ? error.message : String(error) });
+        setBlocked(true);
+      }); }
       else { player.pause(); setEnded(true); }
     }
   };
@@ -41,7 +44,10 @@ function QuestionMediaItem({ media, imagesRevealed, videoStartedAt, pausedAt = n
     if (!player) return;
     player.muted = !soundEnabled;
     player.volume = volume;
-    if (soundEnabled && videoStartedAt && pausedAt === null && !ended) void player.play().catch(() => setBlocked(true));
+    if (soundEnabled && videoStartedAt && pausedAt === null && !ended) void player.play().then(() => setBlocked(false)).catch(error => {
+      console.warn('[tv-media] Playback blocked', { mediaId: media.id, reason: error instanceof Error ? error.message : String(error) });
+      setBlocked(true);
+    });
   }, [soundEnabled, volume]);
   useEffect(() => {
     const player = element.current;
@@ -54,7 +60,10 @@ function QuestionMediaItem({ media, imagesRevealed, videoStartedAt, pausedAt = n
       player.currentTime = start + (loop && length > 0 ? position % length : Math.min(position, length));
       updateProgress();
       if (!videoStartedAt || pausedAt !== null || (!loop && position >= length)) { player.pause(); setEnded(Boolean(videoStartedAt && pausedAt === null && position >= length)); }
-      else void player.play().catch(() => setBlocked(true));
+      else void player.play().then(() => setBlocked(false)).catch(error => {
+        console.warn('[tv-media] Playback blocked', { mediaId: media.id, reason: error instanceof Error ? error.message : String(error) });
+        setBlocked(true);
+      });
     };
     if (player.readyState >= 1) sync(); else player.addEventListener('loadedmetadata', sync, { once: true });
     const interval = window.setInterval(updateProgress, 100);

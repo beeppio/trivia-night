@@ -1,6 +1,6 @@
 import { Crown, Trophy, Volume2 } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { formatSeconds, usePlayerSession, useRemainingSeconds, type PublicSession } from '@/hooks/use-local-session';
 import { PREVIEW_ROOM } from '@/lib/preview-data';
 import { Brand } from '@/components/PartyLayout';
@@ -18,13 +18,14 @@ export default function TV() {
   const broadcastSession = usePlayerSession();
   const [directSession, setDirectSession] = useState<{ session: PublicSession | null } | null>(null);
   const [mediaPlaying, setMediaPlaying] = useState<Record<string, boolean>>({});
-  const reportPlayback = (id: string, playing: boolean) => setMediaPlaying(previous => previous[id] === playing ? previous : { ...previous, [id]: playing });
+  const reportPlayback = useCallback((id: string, playing: boolean) => setMediaPlaying(previous => previous[id] === playing ? previous : { ...previous, [id]: playing }), []);
   const [params, setParams] = useSearchParams();
   const code = (params.get('room') || '').toUpperCase();
   const [roomInput, setRoomInput] = useState('');
   const online = useJoinedRoom(code, true);
   const game = useOnlineGame(online.room, online.players);
   useEffect(() => {
+    if (code) return;
     const host = window.opener;
     const connection = new BroadcastChannel('285-trivia-tv-session');
     const updateSession = (incoming: PublicSession | null) => setDirectSession(previous => {
@@ -52,8 +53,16 @@ export default function TV() {
     request();
     const interval = window.setInterval(request, 1000);
     return () => { window.removeEventListener('message', receive); window.clearInterval(interval); connection.close(); };
-  }, []);
+  }, [code]);
   const session = code ? game.session : directSession ? directSession.session : broadcastSession;
+  const previousDisplay = useRef('');
+  useEffect(() => {
+    const display = `${code || 'local-preview'}:${session?.runId || 'lobby'}:${session?.waiting ? 'waiting' : session?.preparing ? 'preparing' : session?.ended ? 'ended' : session ? 'question' : 'disconnected'}`;
+    if (previousDisplay.current !== display) {
+      console.info('[tv] Display changed', { display, source: code ? 'online-room' : directSession ? 'local-tv-preview' : 'local-game-preview' });
+      previousDisplay.current = display;
+    }
+  }, [code, session?.runId, session?.waiting, session?.preparing, session?.ended, Boolean(session), Boolean(directSession)]);
   const roomCode = online.room?.code || code;
   const waiting = !session || Boolean(session.waiting);
   const [dotCount, setDotCount] = useState(1);
@@ -83,7 +92,7 @@ export default function TV() {
 
   return <main className="relative isolate flex min-h-svh flex-col overflow-hidden bg-background px-5 py-6 text-foreground sm:px-10 lg:px-16 lg:py-10">
     {!tvSound.enabled && <Button variant="ghost" size="icon" aria-label="Enable TV sound" title="Enable TV sound" className="absolute left-3 top-3 z-20 h-8 w-8 rounded-full bg-primary/15 text-primary hover:bg-primary/25" onClick={() => { void tvSound.enable(); }}><Volume2 className="h-4 w-4" /></Button>}
-    {musicActive && backgroundMusic && <div className={backgroundMusic.youtubeId ? 'relative mx-auto mb-5 w-full max-w-md' : 'absolute left-0 top-0 -z-10 h-px w-px overflow-hidden'} aria-hidden={!backgroundMusic.youtubeId}><QuestionMedia key={`${backgroundMusic.id}-${backgroundStartedAt}`} media={[backgroundMusic]} imagesRevealed videoStartedAt={backgroundStartedAt} audience soundEnabled={tvSound.enabled} volume={waiting ? 0.4 : effectiveMusicVolume} loop /></div>}
+    {musicActive && backgroundMusic && <div className={backgroundMusic.youtubeId ? 'relative mx-auto mb-5 w-full max-w-md' : 'absolute left-0 top-0 -z-10 h-px w-px overflow-hidden'} aria-hidden={!backgroundMusic.youtubeId}><QuestionMedia key={backgroundMusic.id} media={[backgroundMusic]} imagesRevealed videoStartedAt={backgroundStartedAt} audience soundEnabled={tvSound.enabled} volume={waiting ? 0.4 : effectiveMusicVolume} loop /></div>}
     {waiting && <BackgroundPattern />}
     {!waiting && <header className="relative flex min-h-12 flex-wrap items-center justify-between gap-x-8 gap-y-3 border-b border-primary/25 pb-5 text-lg font-semibold text-primary sm:text-2xl lg:text-3xl">
       <span className="min-w-0 break-words">{session?.ended ? 'Final standings' : waiting ? 'Join the game' : session?.roundName}</span>
