@@ -23,6 +23,7 @@ export function YouTubeMedia({ media, startedAt, pausedAt, soundEnabled, volume,
   const player = useRef<YouTubePlayer | null>(null);
   const [ready, setReady] = useState(false);
   const [error, setError] = useState(false);
+  const [clipEnded, setClipEnded] = useState(false);
   const progress = useRef(onProgress);
   progress.current = onProgress;
   useEffect(() => {
@@ -31,7 +32,7 @@ export function YouTubeMedia({ media, startedAt, pausedAt, soundEnabled, volume,
       if (cancelled || !container.current) return;
       const mount = document.createElement('div');
       container.current.appendChild(mount);
-      player.current = new api.Player(mount, { videoId: media.youtubeId!, playerVars: { controls: 0, disablekb: 1, playsinline: 1, origin: window.location.origin, rel: 0 }, events: { onReady: () => { if (!cancelled) setReady(true); }, onError: () => { if (!cancelled) setError(true); } } });
+      player.current = new api.Player(mount, { videoId: media.youtubeId!, playerVars: { controls: 0, disablekb: 1, playsinline: 1, origin: window.location.origin, rel: 0, start: Math.floor(media.trimStart ?? 0), ...(media.trimEnd !== undefined ? { end: Math.ceil(media.trimEnd) } : {}) }, events: { onReady: () => { if (!cancelled) setReady(true); }, onError: () => { if (!cancelled) { setError(true); progress.current(0, 0, true); } } } });
     }).catch(() => { if (!cancelled) setError(true); });
     return () => { cancelled = true; player.current?.destroy(); player.current = null; };
   }, [media.youtubeId]);
@@ -44,6 +45,7 @@ export function YouTubeMedia({ media, startedAt, pausedAt, soundEnabled, volume,
     const video = player.current;
     if (!ready || !video) return;
     let synced = false;
+    setClipEnded(false);
     const start = media.trimStart ?? 0;
     const tick = () => {
       const fullLength = video.getDuration();
@@ -62,11 +64,13 @@ export function YouTubeMedia({ media, startedAt, pausedAt, soundEnabled, volume,
         if (loop && startedAt && pausedAt === null) { video.seekTo(start, true); video.playVideo(); }
         else video.pauseVideo();
       }
-      progress.current(Math.max(0, time - start), length, !loop && time >= end);
+      const done = !loop && time >= end;
+      setClipEnded(done);
+      progress.current(Math.max(0, time - start), length, done);
     };
     tick();
     const interval = window.setInterval(tick, 100);
     return () => window.clearInterval(interval);
   }, [ready, startedAt, pausedAt, loop, media.trimStart, media.trimEnd]);
-  return <div className="relative aspect-video overflow-hidden rounded-xl bg-secondary"><div ref={container} className="pointer-events-none h-full w-full [&_iframe]:h-full [&_iframe]:w-full" />{!ready && !error && <p className="absolute inset-0 flex items-center justify-center text-sm text-primary">Loading YouTube media…</p>}{error && <p role="alert" className="absolute inset-0 flex items-center justify-center bg-background p-5 text-sm text-destructive">YouTube could not play this video. It may be unavailable or embedding may be disabled.</p>}</div>;
+  return <div className="relative aspect-video overflow-hidden rounded-xl bg-secondary"><div ref={container} className="pointer-events-none h-full w-full [&_iframe]:h-full [&_iframe]:w-full" />{(!startedAt || pausedAt !== null || clipEnded || !ready) && !error && <div className="absolute inset-0 flex items-center justify-center bg-background text-sm text-primary">{!ready ? 'Loading media…' : clipEnded ? 'Clip finished' : pausedAt !== null ? 'Video paused' : 'Ready for host playback'}</div>}{error && <p role="alert" className="absolute inset-0 flex items-center justify-center bg-background p-5 text-sm text-destructive">Video could not play. It may be unavailable or embedding may be disabled.</p>}</div>;
 }

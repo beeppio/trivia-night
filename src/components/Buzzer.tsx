@@ -1,10 +1,10 @@
 import { useState } from 'react';
-import { ChevronDown, ChevronUp } from 'lucide-react';
+import { ChevronDown, ChevronUp, Play } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { formatSeconds } from '@/hooks/use-local-session';
 
-export function Buzzer({ duration, remaining, running, countdownDuration, deadline, onChange }: { duration: number; remaining: number; running: boolean; countdownDuration: number; deadline: number | null; onChange: (seconds: number) => void }) {
+export function Buzzer({ duration, remaining, running, countdownDuration, deadline, onChange, onStart, canStart }: { duration: number; remaining: number; running: boolean; countdownDuration: number; deadline: number | null; onChange: (seconds: number) => void; onStart: () => void; canStart: boolean }) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(String(duration));
   const save = () => {
@@ -23,6 +23,7 @@ export function Buzzer({ duration, remaining, running, countdownDuration, deadli
       </div>
     </div>
     <div role="progressbar" aria-label="Buzzer time remaining" aria-valuemin={0} aria-valuemax={running ? countdownDuration : duration} aria-valuenow={remaining} className="mb-4 h-2.5 overflow-hidden rounded-full bg-secondary"><div style={{ width: `${Math.max(0, Math.min(100, (deadline ? Math.max(0, (deadline - Date.now()) / 1000) : duration) / (running ? countdownDuration : duration) * 100))}%` }} className="h-full rounded-full bg-primary transition-[width] duration-100 ease-linear motion-reduce:transition-none" /></div>
-    <p className="text-center text-xs text-muted-foreground">{duration} seconds per question{running ? ' · changes apply next question' : ''}</p>
+    <Button className="mb-3 h-11 w-full rounded-xl text-white" disabled={!canStart} onClick={onStart}><Play className="mr-2 h-4 w-4" />{running ? remaining === 0 ? 'Time is up' : 'Buzzer running' : 'Start buzzer'}</Button>
+    <p className="text-center text-xs text-muted-foreground">{duration} seconds per question{running ? ' · changes apply next question' : ' · starts only when you press Start buzzer'}</p>
   </section>;
 }

@@ -162,7 +162,7 @@ export default function Host() {
     setPoints(previous => ({ ...previous, [nextRun]: fullPoints }));
     setAnswerMediaStartedAt(null); setMediaPausedAt(null); setAnswerMediaPausedAt(null);
     setQuestionRuns(previous => ({ ...previous, [index]: nextRun }));
-    setStage('question'); setQuestionDuration(duration); setDeadline(Date.now() + duration * 1000); setImagesRevealed(true); setVideoStartedAt(null); setRunId(nextRun);
+    setStage('question'); setQuestionDuration(duration); setDeadline(null); setImagesRevealed(true); setVideoStartedAt(null); setRunId(nextRun);
   };
   const chooseGame = (game: LocalGame) => {
     const firstRun = crypto.randomUUID();
@@ -177,7 +177,12 @@ export default function Host() {
   };
   const startRound = () => {
     if (stage !== 'preparing') return;
-    setStage('question'); setImagesRevealed(true); setQuestionDuration(duration); setDeadline(Date.now() + duration * 1000);
+    setStage('question'); setImagesRevealed(true); setQuestionDuration(duration); setDeadline(null);
+  };
+  const startBuzzer = () => {
+    if (stage !== 'question' || deadline !== null) return;
+    setQuestionDuration(duration);
+    setDeadline(Date.now() + duration * 1000);
   };
   const playVideo = () => { setMediaPausedAt(null); setVideoStartedAt(Date.now()); };
   const toggleQuestionMedia = () => {
@@ -204,7 +209,7 @@ export default function Host() {
     setAnswerMediaStartedAt(null); setMediaPausedAt(null); setAnswerMediaPausedAt(null); setRunId(nextRun);
     setStage(isReview ? publishedResults[nextRun] ? 'reveal' : 'closed' : showRoundIntro ? 'preparing' : 'question');
     setQuestionDuration(duration);
-    setDeadline(showRoundIntro ? null : isReview ? Date.now() : Date.now() + duration * 1000);
+    setDeadline(showRoundIntro ? null : isReview ? Date.now() : null);
     setImagesRevealed(!showRoundIntro); setVideoStartedAt(null);
   };
   const copyCode = async () => {
@@ -266,7 +271,7 @@ export default function Host() {
         <aside className="space-y-5">
           <section className="panel p-5"><p className="eyebrow">ROOM CODE</p><div className="mt-3 flex items-center justify-between"><span className="display-font text-4xl font-bold tracking-[.15em] text-primary">{PREVIEW_ROOM}</span><Button variant="ghost" size="icon" aria-label="Copy room code" className="rounded-xl" onClick={copyCode}><Copy className="h-4 w-4" /></Button></div></section>
           <HostPlayers players={scoredTeams} showReadiness={stage === 'lobby' || stage === 'waiting'} showAnswers={stage === 'question' || stage === 'closed'} submittedTeamIds={publicSession?.submittedTeamIds} />
-          <Buzzer duration={duration} remaining={remaining} running={deadline !== null} countdownDuration={questionDuration} deadline={deadline} onChange={changeDuration} />
+          <Buzzer duration={duration} remaining={remaining} running={deadline !== null} countdownDuration={questionDuration} deadline={deadline} onChange={changeDuration} onStart={startBuzzer} canStart={stage === 'question' && deadline === null} />
           {activeGame && stage !== 'ended' && <section className="panel space-y-4 p-5"><h2 className="font-semibold">Round music</h2><div className="flex gap-2"><Button variant="outline" className="flex-1 rounded-xl text-primary" aria-pressed={musicMuted} onClick={() => setMusicMuted(previous => !previous)}>{musicMuted ? <VolumeX className="mr-2 h-4 w-4" /> : <Volume2 className="mr-2 h-4 w-4" />}{musicMuted ? 'Unmute' : 'Mute'}</Button><Button variant="outline" size="icon" aria-label="Talk over music" title="Talk over music" aria-pressed={musicTalking} className={`rounded-xl text-primary ${musicTalking ? 'bg-primary/20 ring-1 ring-primary' : ''}`} onClick={() => setMusicTalking(previous => !previous)}><Speech className="h-5 w-5" /></Button></div><p className="text-xs text-muted-foreground">{musicTalking ? 'Talk-over on · music lowered to 20%' : 'Music plays on the TV only. Click the speaking icon to lower it while you talk.'}</p><label className="flex items-center gap-3 text-xs text-muted-foreground">Volume<input aria-label="Round music volume" type="range" min="0" max="1" step="0.05" value={musicVolume} onChange={event => setMusicVolume(Number(event.target.value))} className="w-full accent-primary" /></label></section>}
           <Button variant="outline" className="w-full rounded-xl border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive" disabled={stage === 'lobby' || stage === 'ended'} onClick={() => setConfirmEnd(true)}>End game</Button>
         </aside>

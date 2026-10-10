@@ -12,6 +12,8 @@ import { Button } from '@/components/ui/button';
 export default function TV() {
   const broadcastSession = usePlayerSession();
   const [directSession, setDirectSession] = useState<{ session: PublicSession | null } | null>(null);
+  const [mediaPlaying, setMediaPlaying] = useState<Record<string, boolean>>({});
+  const reportPlayback = (id: string, playing: boolean) => setMediaPlaying(previous => previous[id] === playing ? previous : { ...previous, [id]: playing });
   useEffect(() => {
     const host = window.opener;
     const connection = new BroadcastChannel('285-trivia-tv-session');
@@ -54,7 +56,8 @@ export default function TV() {
   const remaining = useRemainingSeconds(session?.deadline ?? null, session?.duration ?? 30);
   const tvSound = useTVSound(session, remaining);
   const musicActive = Boolean(session?.roundMusic && !session.waiting && !session.ended);
-  const effectiveMusicVolume = session?.musicMuted ? 0 : (session?.musicVolume ?? 0.4) * (session?.musicTalking ? 0.2 : 1);
+  const foregroundPlaying = Object.values(mediaPlaying).some(Boolean);
+  const effectiveMusicVolume = session?.musicMuted || foregroundPlaying ? 0 : (session?.musicVolume ?? 0.4) * (session?.musicTalking ? 0.2 : 1);
   const showingQuestion = Boolean(session && !session.waiting && !session.preparing && !session.ended);
   const revealed = session?.answer !== undefined;
   const expired = showingQuestion && session?.deadline !== null && remaining === 0;
@@ -87,7 +90,7 @@ export default function TV() {
         {revealed && <p className="text-[clamp(1rem,2vw,2rem)] font-semibold text-primary">Correct Answer</p>}
         <h1 role={expired && !revealed ? 'status' : undefined} className={`whitespace-pre-wrap break-words text-[clamp(2rem,5vw,7rem)] font-bold leading-[1.15] tracking-tight ${expired && !revealed ? 'text-red-400' : 'text-foreground'}`}>{revealed ? session.answer : expired ? 'Time is up!' : session.text}</h1>
         <div className="mx-auto w-full max-w-4xl text-left [&_img]:mx-auto">
-          {revealed ? <QuestionMedia key={`${session.runId}-answer`} media={session.answerMedia || []} imagesRevealed videoStartedAt={session.answerMediaStartedAt} pausedAt={session.answerMediaPausedAt} audience soundEnabled={tvSound.enabled} /> : <QuestionMedia key={session.runId} media={session.media} imagesRevealed={session.imagesRevealed} videoStartedAt={session.videoStartedAt} pausedAt={session.mediaPausedAt} audience soundEnabled={tvSound.enabled} />}
+          {revealed ? <QuestionMedia key={`${session.runId}-answer`} media={session.answerMedia || []} imagesRevealed videoStartedAt={session.answerMediaStartedAt} pausedAt={session.answerMediaPausedAt} audience soundEnabled={tvSound.enabled} onPlaybackChange={reportPlayback} /> : <QuestionMedia key={session.runId} media={session.media} imagesRevealed={session.imagesRevealed} videoStartedAt={session.videoStartedAt} pausedAt={session.mediaPausedAt} audience soundEnabled={tvSound.enabled} onPlaybackChange={reportPlayback} />}
         </div>
       </div> : <div className="w-full max-w-5xl space-y-8 text-center">
         <Brand large />
@@ -103,7 +106,7 @@ export default function TV() {
     {!session?.ended && <footer className="relative space-y-5 border-t border-primary/25 pt-6">
       {showingQuestion && <div className="relative h-14 overflow-hidden rounded-2xl border border-violet-400/40 bg-violet-950 sm:h-16">
         <div role="progressbar" aria-label="Question time remaining" aria-valuemin={0} aria-valuemax={session?.duration ?? 30} aria-valuenow={remaining} style={{ width: `${progress}%` }} className="absolute inset-y-0 left-0 rounded-xl bg-violet-600 transition-[width] duration-100 ease-linear motion-reduce:transition-none" />
-        <div role="timer" className="relative flex h-full items-center justify-between px-5 text-white"><span className="text-sm font-semibold sm:text-lg">{expired ? 'Time is up!' : revealed ? 'Answer revealed' : 'Time remaining'}</span><span className="text-3xl font-bold tabular-nums sm:text-4xl">{formatSeconds(remaining).replace(/^0(?=\d:)/, '')}</span></div>
+        <div role="timer" className="relative flex h-full items-center justify-between px-5 text-white"><span className="text-sm font-semibold sm:text-lg">{expired ? 'Time is up!' : revealed ? 'Answer revealed' : session?.deadline === null ? 'Waiting for host to start buzzer' : 'Time remaining'}</span><span className="text-3xl font-bold tabular-nums sm:text-4xl">{formatSeconds(remaining).replace(/^0(?=\d:)/, '')}</span></div>
       </div>}
       {waiting && <p className="text-center text-lg font-semibold text-primary">{session?.rankings.length ?? 0} {(session?.rankings.length ?? 0) === 1 ? 'player joined' : 'players joined'}</p>}
       <ul aria-label="Team scores and answers" className="grid grid-cols-1 items-end gap-3 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5">

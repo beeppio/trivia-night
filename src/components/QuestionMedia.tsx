@@ -5,10 +5,10 @@ import { YouTubeMedia } from '@/components/YouTubeMedia';
 import { useMediaUrl } from '@/hooks/use-media-url';
 import type { GameMedia } from '@/lib/local-games';
 
-type PlaybackProps = { imagesRevealed: boolean; videoStartedAt: number | null; pausedAt?: number | null; audience?: boolean; soundEnabled?: boolean; volume?: number; loop?: boolean; onToggle?: () => void; onReplay?: () => void; controlsDisabled?: boolean };
+type PlaybackProps = { imagesRevealed: boolean; videoStartedAt: number | null; pausedAt?: number | null; audience?: boolean; soundEnabled?: boolean; volume?: number; loop?: boolean; onToggle?: () => void; onReplay?: () => void; controlsDisabled?: boolean; onPlaybackChange?: (id: string, playing: boolean) => void };
 const timeLabel = (seconds: number) => `${Math.floor(seconds / 60)}:${String(Math.floor(seconds % 60)).padStart(2, '0')}`;
 
-function QuestionMediaItem({ media, imagesRevealed, videoStartedAt, pausedAt = null, audience = false, soundEnabled = false, volume = 1, loop = false, onToggle, onReplay, controlsDisabled = false }: PlaybackProps & { media: GameMedia }) {
+function QuestionMediaItem({ media, imagesRevealed, videoStartedAt, pausedAt = null, audience = false, soundEnabled = false, volume = 1, loop = false, onToggle, onReplay, controlsDisabled = false, onPlaybackChange }: PlaybackProps & { media: GameMedia }) {
   const url = useMediaUrl(media);
   const [blocked, setBlocked] = useState(false);
   const [elapsed, setElapsed] = useState(0);
@@ -16,6 +16,14 @@ function QuestionMediaItem({ media, imagesRevealed, videoStartedAt, pausedAt = n
   const [ended, setEnded] = useState(false);
   const element = useRef<HTMLMediaElement | null>(null);
   const start = media.trimStart ?? 0;
+  const playing = videoStartedAt !== null && pausedAt === null && !ended;
+  const playbackCallback = useRef(onPlaybackChange);
+  playbackCallback.current = onPlaybackChange;
+  useEffect(() => {
+    if (media.kind !== 'audio' && media.kind !== 'video') return;
+    playbackCallback.current?.(media.id, playing && !blocked);
+    return () => playbackCallback.current?.(media.id, false);
+  }, [media.id, media.kind, playing, blocked]);
   const updateProgress = () => {
     const player = element.current;
     if (!player) return;
@@ -65,7 +73,6 @@ function QuestionMediaItem({ media, imagesRevealed, videoStartedAt, pausedAt = n
   }, [media.youtubeId, audience, videoStartedAt, pausedAt, start, media.trimEnd]);
   if (media.kind === 'image') return imagesRevealed && url ? <img src={url} alt={media.name || 'Question illustration'} className="max-h-96 w-auto rounded-xl object-contain" /> : null;
   if (media.kind === 'pdf') return url ? <a href={url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 text-sm text-primary"><FileText className="h-4 w-4" />Open PDF</a> : null;
-  const playing = videoStartedAt !== null && pausedAt === null && !ended;
   const toggleLabel = playing ? 'Pause' : pausedAt !== null ? 'Resume' : 'Play';
   const controls = !audience && <><Button size="icon" variant="ghost" aria-label={`${toggleLabel} ${media.kind}`} title={toggleLabel} disabled={controlsDisabled} onClick={ended ? onReplay : onToggle} className="h-10 w-10 shrink-0 rounded-full text-primary hover:bg-primary/15 hover:text-primary">{playing ? <Pause className="h-6 w-6 fill-current" /> : <Play className="h-6 w-6 fill-current" />}</Button></>;
   const replay = !audience && <Button size="icon" variant="ghost" aria-label={`Replay ${media.kind}`} title="Replay" disabled={controlsDisabled} onClick={onReplay} className="h-10 w-10 shrink-0 rounded-full text-primary hover:bg-primary/15 hover:text-primary"><RotateCcw className="h-5 w-5" /></Button>;
