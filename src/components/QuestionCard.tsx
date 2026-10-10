@@ -1,0 +1,8 @@
+import { previewQuestions } from '@/lib/preview-data';
+
+const colors = ['text-primary bg-primary/15', 'text-accent bg-accent/15', 'text-[hsl(var(--mint))] bg-[hsl(var(--mint)/.15)]', 'text-[hsl(var(--yellow))] bg-[hsl(var(--yellow)/.15)]'];
+
+export function QuestionCard({ index = 0, selected, onSelect, disabled = false, large = false }: { index?: number; selected?: number | null; onSelect?: (index: number) => void; disabled?: boolean; large?: boolean }) {
+  const question = previewQuestions[index];
+  return <div><div className="mb-4 flex flex-wrap items-center gap-3"><span className="rounded-full bg-primary/10 px-3 py-1.5 text-xs font-medium text-primary">{question.category}</span><span className="text-xs text-muted-foreground">{question.points.toLocaleString()} points</span></div><h2 className={`${large ? 'text-3xl sm:text-5xl' : 'text-2xl sm:text-3xl'} font-bold leading-tight tracking-tight`}>{question.text}</h2><div className={`mt-7 grid gap-3 ${large ? 'sm:grid-cols-2' : ''}`}>{question.options.map((option, i) => onSelect ? <button key={option} disabled={disabled} onClick={() => onSelect(i)} aria-pressed={selected === i} className={`answer-option disabled:cursor-default ${selected === i ? 'border-primary bg-primary/15 ring-1 ring-primary' : ''}`}><span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg font-bold ${colors[i]}`}>{String.fromCharCode(65 + i)}</span><span className="font-medium">{option}</span></button> : <div key={option} className="answer-option"><span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg font-bold ${colors[i]}`}>{String.fromCharCode(65 + i)}</span><span className={large ? 'text-lg font-medium' : 'font-medium'}>{option}</span></div>)}</div></div>;
+}
