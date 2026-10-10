@@ -234,14 +234,10 @@ export default function Host() {
             <p className="w-fit rounded-full bg-primary/15 px-4 py-2 text-sm font-semibold text-primary">{fullPoints} points</p>
             <h2 className="whitespace-pre-wrap break-words text-2xl font-bold leading-tight text-white sm:text-3xl">{question.text}</h2>
             <QuestionMedia key={runId} media={question.questionMedia} imagesRevealed={imagesRevealed} videoStartedAt={videoStartedAt} pausedAt={mediaPausedAt} onToggle={toggleQuestionMedia} onReplay={playVideo} />
-            <div className="flex flex-wrap gap-2">
-              {question.questionMedia.some(media => media.kind === 'video' || media.kind === 'audio') && <Button variant="outline" className="rounded-xl text-primary" disabled={stage !== 'question'} onClick={playVideo}><Play className="mr-2 h-4 w-4 fill-current" />{videoStartedAt ? 'Restart media for players' : 'Play media for players'}</Button>}
-            </div>
             <section className="space-y-4 border-t-2 border-dotted border-primary/60 pt-6">
               <h3 className="text-sm font-semibold text-primary">Answer</h3>
               <p className="whitespace-pre-wrap break-words font-semibold text-white">{question.answer}</p>
               <QuestionMedia key={`${runId}-answer`} media={question.answerMedia} imagesRevealed videoStartedAt={answerMediaStartedAt} pausedAt={answerMediaPausedAt} onToggle={toggleAnswerMedia} onReplay={() => { setAnswerMediaPausedAt(null); setAnswerMediaStartedAt(Date.now()); }} controlsDisabled={stage !== 'reveal'} />
-              {question.answerMedia.some(media => media.kind === 'audio' || media.kind === 'video') && <Button variant="outline" className="rounded-xl text-primary" disabled={stage !== 'reveal'} onClick={() => { setAnswerMediaPausedAt(null); setAnswerMediaStartedAt(Date.now()); }}><Play className="mr-2 h-4 w-4 fill-current" />Play answer media for players</Button>}
               {question.hostNotes?.trim() && <div className="space-y-2"><h3 className="text-sm font-semibold text-primary">Host notes</h3><p className="whitespace-pre-wrap break-words text-sm leading-6">{question.hostNotes}</p></div>}
             </section>
             <TeamAnswers teams={teams} answers={answers[runId] || []} points={fullPoints} rightAnswer={question.answer} onGrade={gradeAnswer} />

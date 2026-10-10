@@ -5,6 +5,7 @@ import { formatSeconds, usePlayerSession, useRemainingSeconds, type PublicSessio
 import { PREVIEW_ROOM } from '@/lib/preview-data';
 import { Brand } from '@/components/PartyLayout';
 import { BackgroundPattern } from '@/components/BackgroundPattern';
+import { QuestionMedia } from '@/components/QuestionMedia';
 
 export default function TV() {
   const broadcastSession = usePlayerSession();
@@ -12,12 +13,21 @@ export default function TV() {
   useEffect(() => {
     const host = window.opener;
     const connection = new BroadcastChannel('285-trivia-tv-session');
+    const updateSession = (incoming: PublicSession | null) => setDirectSession(previous => {
+      const current = previous?.session;
+      if (!incoming || !current || incoming.runId !== current.runId) return { session: incoming };
+      return { session: {
+        ...incoming,
+        media: incoming.media.map(item => current.media.find(existing => existing.id === item.id) ?? item),
+        answerMedia: incoming.answerMedia?.map(item => current.answerMedia?.find(existing => existing.id === item.id) ?? item),
+      } };
+    });
     connection.onmessage = event => {
-      if (event.data?.type === '285-tv-session') setDirectSession({ session: event.data.session });
+      if (event.data?.type === '285-tv-session') updateSession(event.data.session);
     };
     const receive = (event: MessageEvent) => {
       if (!host || event.origin !== window.location.origin || event.source !== host || event.data?.type !== '285-tv-session') return;
-      setDirectSession({ session: event.data.session });
+      updateSession(event.data.session);
     };
     window.addEventListener('message', receive);
     const request = () => {
@@ -64,7 +74,14 @@ export default function TV() {
             <p className="min-w-0 flex-1 break-words text-lg font-semibold sm:text-2xl">{team.name}</p><p className={`shrink-0 text-xl font-bold tabular-nums sm:text-3xl ${winner ? 'text-yellow-300' : 'text-primary'}`}>{team.score}<span className="ml-2 text-xs">points</span></p>
           </li>;
         })}</ol>
-      </div> : session?.preparing ? <div className="w-full space-y-6 text-center"><h1 className="break-words text-[clamp(2rem,5vw,7rem)] font-bold leading-tight text-primary">{session.roundName}</h1>{session.roundDescription?.trim() && <p className="mx-auto max-w-5xl whitespace-pre-wrap break-words text-[clamp(1.25rem,2.5vw,3rem)] leading-relaxed">{session.roundDescription}</p>}</div> : showingQuestion ? <div className="w-full text-center">{revealed && <p className="mb-5 text-[clamp(1rem,2vw,2rem)] font-semibold text-primary">Correct Answer</p>}<h1 role={expired && !revealed ? 'status' : undefined} className={`whitespace-pre-wrap break-words text-[clamp(2rem,5vw,7rem)] font-bold leading-[1.15] tracking-tight ${expired && !revealed ? 'text-red-400' : 'text-foreground'}`}>{revealed ? session?.answer : expired ? 'Time is up!' : session?.text}</h1></div> : <div className="w-full max-w-5xl space-y-8 text-center">
+      </div> : session?.preparing ? <div className="w-full space-y-6 text-center"><h1 className="break-words text-[clamp(2rem,5vw,7rem)] font-bold leading-tight text-primary">{session.roundName}</h1>{session.roundDescription?.trim() && <p className="mx-auto max-w-5xl whitespace-pre-wrap break-words text-[clamp(1.25rem,2.5vw,3rem)] leading-relaxed">{session.roundDescription}</p>}</div> : showingQuestion && session ? <div className="w-full space-y-6 text-center">
+        <p className="text-sm font-semibold tracking-wide text-primary sm:text-lg">Round {session.roundIndex + 1} • Question {session.questionIndex + 1}</p>
+        {revealed && <p className="text-[clamp(1rem,2vw,2rem)] font-semibold text-primary">Correct Answer</p>}
+        <h1 role={expired && !revealed ? 'status' : undefined} className={`whitespace-pre-wrap break-words text-[clamp(2rem,5vw,7rem)] font-bold leading-[1.15] tracking-tight ${expired && !revealed ? 'text-red-400' : 'text-foreground'}`}>{revealed ? session.answer : expired ? 'Time is up!' : session.text}</h1>
+        <div className="mx-auto w-full max-w-4xl text-left [&_img]:mx-auto">
+          {revealed ? <QuestionMedia key={`${session.runId}-answer`} media={session.answerMedia || []} imagesRevealed videoStartedAt={session.answerMediaStartedAt} pausedAt={session.answerMediaPausedAt} audience /> : <QuestionMedia key={session.runId} media={session.media} imagesRevealed={session.imagesRevealed} videoStartedAt={session.videoStartedAt} pausedAt={session.mediaPausedAt} audience />}
+        </div>
+      </div> : <div className="w-full max-w-5xl space-y-8 text-center">
         <Brand large />
         <h1 className="text-lg font-medium leading-tight tracking-tight text-muted-foreground sm:text-2xl">Welcome to 285's Trivia Night</h1>
         <h2 className="mt-8 text-4xl font-bold tracking-tight sm:text-6xl">Join the game</h2>

@@ -10,7 +10,7 @@ export function useTVPreview(session: PublicSession | null) {
 
   const publish = () => {
     const current = latest.current;
-    const message = { type: '285-tv-session', session: current ? { ...current, media: [], answerMedia: [], rankings: current.rankings.map(({ frames, ...team }) => team) } : null };
+    const message = { type: '285-tv-session', session: current ? { ...current, rankings: current.rankings.map(({ frames, ...team }) => team) } : null };
     channel.current?.postMessage(message);
     const target = preview.current;
     if (target && !target.closed) target.postMessage(message, window.location.origin);
