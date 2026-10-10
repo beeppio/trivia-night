@@ -9,8 +9,8 @@ export default function Index() {
         <BackgroundPattern />
         <section className="enter relative w-full max-w-3xl text-center">
           <Brand large />
-          <h1 className="text-3xl font-bold leading-tight tracking-tight sm:text-5xl">Welcome to 285's Trivia Night</h1>
-          <h2 className="mt-8 text-2xl font-semibold tracking-tight sm:text-3xl">Join the game</h2>
+          <h1 className="text-lg font-medium leading-tight tracking-tight text-muted-foreground sm:text-2xl">Welcome to 285's Trivia Night</h1>
+          <h2 className="mt-8 text-4xl font-bold tracking-tight sm:text-6xl">Join the game</h2>
           <p className="mt-6 text-base leading-7 text-muted-foreground sm:text-lg">
             On your phone, go to the websites and enter the room code
           </p>
