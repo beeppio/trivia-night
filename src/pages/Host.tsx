@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowLeft, ArrowRight, Copy, Eye, Monitor, Pencil, Play, Plus, RotateCcw } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Copy, Crown, Eye, Monitor, Pencil, Play, Plus, RotateCcw } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -78,7 +78,7 @@ export default function Host() {
   return <PartyLayout>
     <main className="mx-auto max-w-7xl px-5 py-9 sm:px-8">
       <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
-        <h1 className="text-2xl font-semibold text-primary sm:text-3xl">Host Dashboard</h1>
+        <h1 className="flex items-center gap-3 text-2xl font-semibold text-primary sm:text-3xl"><Crown aria-hidden="true" className="h-7 w-7 shrink-0 sm:h-8 sm:w-8" />Host Dashboard</h1>
         <div className="flex flex-wrap gap-2">
           <Button asChild variant="outline" className="rounded-xl"><Link to={`/player/${PREVIEW_ROOM}?preview=1`}><Eye className="mr-2 h-4 w-4" /> Player preview</Link></Button>
           <Button asChild className="rounded-xl"><Link to={`/display/${PREVIEW_ROOM}`} target="_blank" rel="noopener noreferrer"><Monitor className="mr-2 h-4 w-4" /> Open display</Link></Button>
@@ -86,25 +86,24 @@ export default function Host() {
       </div>
       <div className="grid gap-5 lg:grid-cols-[1fr_320px]">
         <section className="panel p-5 sm:p-7">
-          <div className="mb-6 flex items-center justify-between gap-4 border-b border-border pb-5">
-            <div className="min-w-0 flex-1">{activeGame && <p className="break-words text-lg font-semibold text-primary">{activeGame.title}</p>}{question && stage !== 'lobby' && <p className="mt-1 text-xs text-muted-foreground">Round {question.roundIndex + 1} · {question.roundName} · Question {question.questionIndex + 1}</p>}</div>
-            {stage === 'lobby' ? <Button variant="outline" className="shrink-0 rounded-xl" onClick={() => setEditor({})}><Plus className="mr-2 h-4 w-4" /> New game</Button> : <span className="rounded-full bg-primary/10 px-3 py-1.5 text-xs font-semibold capitalize text-primary">{stage}</span>}
-          </div>
-          {stage === 'lobby' ? loading ? <p role="status" className="py-12 text-center text-muted-foreground">Loading your games…</p> : storageError ? <p role="alert" className="py-12 text-center text-destructive">Local game storage is unavailable. Allow browser storage and refresh to retry.</p> : games.length === 0 ? <div className="flex flex-col items-center py-12 text-center">
-            <Button variant="outline" size="icon" aria-label="Create a new game" onClick={() => setEditor({})} className="mb-5 h-20 w-20 rounded-3xl border-dashed border-primary/50 bg-primary/10 text-primary hover:bg-primary/20"><Plus className="!h-8 !w-8" /></Button>
-            <h2 className="text-2xl font-semibold">Create your first game</h2><p className="mt-3 text-sm text-muted-foreground">Add rounds, questions, answers, and media.</p>
-          </div> : <div className="py-5">
+          {stage !== 'lobby' && <div className="mb-6 flex items-center justify-between gap-4 border-b border-border pb-5">
+            <div className="min-w-0 flex-1">{activeGame && <p className="break-words text-lg font-semibold text-primary">{activeGame.title}</p>}{question && <p className="mt-1 text-xs text-muted-foreground">Round {question.roundIndex + 1} · {question.roundName} · Question {question.questionIndex + 1}</p>}</div>
+            <span className="rounded-full bg-primary/10 px-3 py-1.5 text-xs font-semibold capitalize text-primary">{stage}</span>
+          </div>}
+          {stage === 'lobby' ? loading ? <p role="status" className="py-12 text-center text-muted-foreground">Loading your games…</p> : storageError ? <p role="alert" className="py-12 text-center text-destructive">Local game storage is unavailable. Allow browser storage and refresh to retry.</p> : <div className="py-5">
             <h2 className="mb-4 text-lg font-semibold">Your games</h2>
             <div className="space-y-4">{games.map(game => <article key={game.id} className="rounded-2xl border border-border bg-secondary/30 p-5">
               <div className="flex flex-wrap items-center justify-between gap-4">
                 <div className="min-w-0"><h3 className="break-words text-lg font-semibold text-primary">{game.title || 'Untitled game'}</h3><p className="mt-2 text-xs text-muted-foreground">{game.rounds.length} rounds · {game.rounds.reduce((total, round) => total + round.questions.length, 0)} questions</p></div>
                 <div className="flex items-center gap-2">
-                  <Button className="rounded-xl bg-white text-primary-foreground hover:bg-white/90" disabled={!playable(game)} onClick={() => startGame(game)}><Play className="mr-2 h-4 w-4 fill-current" /> Start game</Button>
+                  <Button className="rounded-xl" disabled={!playable(game)} onClick={() => startGame(game)}><Play className="mr-2 h-4 w-4 fill-white text-white" /> Start game</Button>
                   <Button variant="ghost" size="icon" aria-label={`Edit ${game.title || 'untitled game'}`} title="Edit game" className="rounded-xl border-0 bg-transparent text-primary hover:bg-transparent hover:text-foreground" onClick={() => setEditor({ game })}><Pencil className="h-4 w-4" /></Button>
                 </div>
               </div>
               {!playable(game) && <p className="mt-3 text-xs text-muted-foreground">Add questions and answers in Edit before starting.</p>}
-            </article>)}</div>
+            </article>)}
+              <Button variant="outline" onClick={() => setEditor({})} className="h-auto min-h-28 w-full gap-3 rounded-2xl border-2 border-dotted border-primary/50 bg-transparent p-5 text-base text-primary hover:border-primary hover:bg-primary/10 hover:text-primary"><Plus aria-hidden="true" className="h-5 w-5" /> Add new game</Button>
+            </div>
             <p className="mt-5 text-xs leading-5 text-muted-foreground">Saved on this device. Start game runs locally on this dashboard; player and display previews are not connected.</p>
           </div> : stage === 'ended' ? <div className="py-12 text-center"><h2 className="text-3xl font-bold">Game complete</h2><p className="mt-3 text-primary">{activeGame?.title}</p><Button className="party-button mt-6" onClick={() => { setActiveGame(null); setStage('lobby'); }}>Back to games</Button></div> : question && stage === 'round' ? <div className="py-12 text-center"><p className="eyebrow text-primary">ROUND {question.roundIndex + 1}</p><h2 className="mt-4 text-4xl font-bold">{question.roundName}</h2><Button className="party-button mt-7" onClick={() => setStage('question')}>Show question <ArrowRight className="ml-2 h-4 w-4" /></Button></div> : question ? <div className="space-y-6">
             <h2 className="whitespace-pre-wrap break-words text-2xl font-bold leading-tight sm:text-3xl">{question.text}</h2>
