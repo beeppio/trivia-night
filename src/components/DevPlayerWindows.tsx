@@ -33,14 +33,14 @@ function PlayerWindow({ team, session, onSubmit, onProfileChange, onMinimize, or
   </div>;
 }
 
-export function DevPlayerWindows({ teams, session, onAdd, onSubmit, onProfileChange }: { teams: Team[]; session: PublicSession | null; onAdd: () => void; onSubmit: (submission: PlayerSubmission) => void; onProfileChange: (profile: Team) => void }) {
+export function DevPlayerWindows({ teams, session, onAdd, onSubmit, onProfileChange, onTVPreview }: { teams: Team[]; session: PublicSession | null; onAdd: () => void; onSubmit: (submission: PlayerSubmission) => void; onProfileChange: (profile: Team) => void; onTVPreview: () => void }) {
   const [minimized, setMinimized] = useState<string[]>([]);
   const [stack, setStack] = useState<string[]>([]);
   const focus = (id: string) => setStack(previous => [...previous.filter(item => item !== id), id]);
   return <>
     {teams.map((team, index) => <div key={team.id} className={minimized.includes(team.id) ? 'hidden' : ''}><PlayerWindow team={team} session={session} onSubmit={onSubmit} onProfileChange={onProfileChange} onMinimize={() => setMinimized(previous => [...previous, team.id])} order={stack.includes(team.id) ? teams.length + stack.indexOf(team.id) : index} onFocus={() => focus(team.id)} /></div>)}
     <div className="fixed inset-x-0 bottom-0 z-[1000] flex items-center gap-2 overflow-x-auto border-t border-primary/30 bg-card px-4 py-3 shadow-xl">
-      <Button asChild variant="outline" className="shrink-0 rounded-xl border-primary/50 bg-primary/10 text-primary"><Link to="/tv" target="_blank" rel="noopener noreferrer"><Monitor className="mr-2 h-4 w-4" />TV cast preview</Link></Button>
+      <Button variant="outline" className="shrink-0 rounded-xl border-primary/50 bg-primary/10 text-primary" onClick={onTVPreview}><Monitor className="mr-2 h-4 w-4" />TV cast preview</Button>
       <Button className="shrink-0 rounded-xl text-white" onClick={onAdd}><Plus className="mr-2 h-4 w-4" />Add player</Button>
       {teams.map(team => <Button key={team.id} variant="outline" aria-pressed={!minimized.includes(team.id)} className={`shrink-0 rounded-xl ${!minimized.includes(team.id) ? 'border-primary/50 bg-primary/10 text-primary' : 'bg-transparent'}`} onClick={() => { setMinimized(previous => previous.filter(id => id !== team.id)); focus(team.id); }}><Gamepad2 className="mr-2 h-4 w-4" />{team.name}</Button>)}
       <span className="ml-auto shrink-0 pl-3 text-xs text-muted-foreground">Dev player previews</span>

@@ -16,6 +16,7 @@ import { PREVIEW_ROOM } from '@/lib/preview-data';
 import { loadGames, readLegacyDrafts, saveGame, deleteGame, type LocalGame } from '@/lib/local-games';
 import { useRoundMusic } from '@/hooks/use-round-music';
 import { useHostSession, useRemainingSeconds, type PlayerSubmission, type PublicSession } from '@/hooks/use-local-session';
+import { useTVPreview } from '@/hooks/use-tv-preview';
 import { PlayerLobby } from '@/components/PlayerLobby';
 
 type Stage = 'lobby' | 'waiting' | 'preparing' | 'question' | 'closed' | 'reveal' | 'ended';
@@ -99,6 +100,8 @@ export default function Host() {
     open: stage === 'question' && deadline !== null, ended: stage === 'ended', rankings: scoredTeams,
     ...(stage === 'reveal' ? { answer: question.answer, answerMedia: question.answerMedia, results: (publishedResults[runId] || []).map(result => ({ ...result, points: (result.grade ?? 0) * fullPoints })) } : {}),
   }), [activeGame, question, stage, runId, imagesRevealed, videoStartedAt, mediaPausedAt, answerMediaPausedAt, answerMediaStartedAt, deadline, questionDuration, duration, scoredTeams, publishedResults, fullPoints]);
+
+  const openTVPreview = useTVPreview(publicSession);
 
   function receiveSubmission(submission: PlayerSubmission) {
     if (submission.runId !== runId || stage !== 'question' || !deadline || Date.now() >= deadline) return;
@@ -195,7 +198,7 @@ export default function Host() {
         <h1 className="flex items-center gap-3 text-2xl font-semibold text-primary sm:text-3xl"><Crown aria-hidden="true" className="h-7 w-7 shrink-0 sm:h-8 sm:w-8" />Host Dashboard</h1>
         <div className="flex flex-wrap gap-2">
           <Button asChild variant="outline" className="rounded-xl"><Link to={`/player/${PREVIEW_ROOM}?preview=1`} target="_blank" rel="noopener noreferrer"><Eye className="mr-2 h-4 w-4" /> Player preview</Link></Button>
-          <Button asChild variant="outline" className="rounded-xl border-primary/40 bg-primary/10 text-primary"><Link to="/tv" target="_blank" rel="noopener noreferrer"><Monitor className="mr-2 h-4 w-4" /> Dev TV preview</Link></Button>
+          <Button variant="outline" className="rounded-xl border-primary/40 bg-primary/10 text-primary" onClick={openTVPreview}><Monitor className="mr-2 h-4 w-4" /> Dev TV preview</Button>
           <Button asChild className="rounded-xl"><Link to={`/display/${PREVIEW_ROOM}`} target="_blank" rel="noopener noreferrer"><Monitor className="mr-2 h-4 w-4" /> Open display</Link></Button>
         </div>
       </div>
@@ -253,7 +256,7 @@ export default function Host() {
         </aside>
       </div>
     </main>
-    <DevPlayerWindows teams={teams} session={publicSession} onAdd={addPlayer} onSubmit={receiveSubmission} onProfileChange={registerTeam} />
+    <DevPlayerWindows teams={teams} session={publicSession} onAdd={addPlayer} onSubmit={receiveSubmission} onProfileChange={registerTeam} onTVPreview={openTVPreview} />
     {editor && <NewGameDialog initialGame={editor.game} onClose={() => setEditor(null)} onSave={persistGame} onDelete={removeGame} />}
     <Dialog open={confirmEnd} onOpenChange={setConfirmEnd}><DialogContent className="rounded-2xl"><DialogHeader><DialogTitle>End this game?</DialogTitle></DialogHeader><p className="text-sm text-muted-foreground">Your saved questions and files will be kept.</p><div className="mt-4 flex justify-end gap-3"><Button variant="outline" className="rounded-xl" onClick={() => setConfirmEnd(false)}>Keep playing</Button><Button className="rounded-xl bg-destructive hover:bg-destructive/90" onClick={() => { music.switchTrack(); setStage('ended'); setDeadline(null); setConfirmEnd(false); }}>End game</Button></div></DialogContent></Dialog>
   </PartyLayout>;

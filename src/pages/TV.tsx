@@ -1,9 +1,25 @@
 import { Brain } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { formatSeconds, usePlayerSession, useRemainingSeconds } from '@/hooks/use-local-session';
+import { useEffect, useState } from 'react';
+import { formatSeconds, usePlayerSession, useRemainingSeconds, type PublicSession } from '@/hooks/use-local-session';
 
 export default function TV() {
-  const session = usePlayerSession();
+  const broadcastSession = usePlayerSession();
+  const [directSession, setDirectSession] = useState<{ session: PublicSession | null } | null>(null);
+  useEffect(() => {
+    const host = window.opener;
+    if (!host) return;
+    const receive = (event: MessageEvent) => {
+      if (event.origin !== window.location.origin || event.source !== host || event.data?.type !== '285-tv-session') return;
+      setDirectSession({ session: event.data.session });
+    };
+    window.addEventListener('message', receive);
+    const request = () => { if (!host.closed) host.postMessage({ type: '285-tv-request' }, window.location.origin); };
+    request();
+    const interval = window.setInterval(request, 2000);
+    return () => { window.removeEventListener('message', receive); window.clearInterval(interval); };
+  }, []);
+  const session = directSession ? directSession.session : broadcastSession;
   const remaining = useRemainingSeconds(session?.deadline ?? null, session?.duration ?? 30);
   const showingQuestion = session && !session.waiting && !session.preparing && !session.ended;
 
