@@ -11,7 +11,7 @@ import { Trash2 } from 'lucide-react';
 
 function CountSelect({ id, label, count, maximum, onChange }: { id: string; label: string; count: number; maximum: number; onChange: (count: number) => void }) {
   return <Select value={String(count)} onValueChange={value => onChange(Number(value))}>
-    <SelectTrigger id={id} aria-label={label} className="h-12 rounded-xl bg-background">
+    <SelectTrigger id={id} aria-label={label} className="h-12 rounded-xl bg-transparent">
       <span className="truncate text-muted-foreground">{label}</span><span className="ml-auto mr-2 font-medium text-foreground">{count}</span>
     </SelectTrigger>
     <SelectContent className="max-h-64 rounded-xl">{Array.from({ length: maximum }, (_, index) => <SelectItem key={index} value={String(index + 1)}>{index + 1}</SelectItem>)}</SelectContent>
@@ -53,13 +53,13 @@ export function NewGameDialog({ onClose, onSave, onDelete, initialGame }: { onCl
       <form onSubmit={submit} className="mt-4 space-y-7">
         <fieldset disabled={saving} className="space-y-7 disabled:opacity-60">
           <div className="grid gap-5 rounded-2xl border border-primary/30 bg-primary/10 p-5 sm:grid-cols-[2fr_1fr]">
-            <Input id="game-name" aria-label="Game name" value={game.title} onChange={event => setGame(previous => ({ ...previous, title: event.target.value }))} placeholder="Game name" maxLength={80} className="h-12 rounded-xl bg-background placeholder:text-muted-foreground" />
+            <Input id="game-name" aria-label="Game name" value={game.title} onChange={event => setGame(previous => ({ ...previous, title: event.target.value }))} placeholder="Game name" maxLength={80} className="h-12 rounded-xl bg-transparent placeholder:text-muted-foreground" />
             <CountSelect id="round-count" label="Number of rounds" count={game.rounds.length} maximum={10} onChange={resizeRounds} />
           </div>
           {game.rounds.map((round, roundIndex) => <section key={round.id} className="space-y-6 rounded-2xl border border-border bg-secondary/15 p-4 sm:p-6">
             <div className="grid items-start gap-5 sm:grid-cols-[2fr_1fr]">
               <div className="space-y-3">
-                <Input id={`round-${round.id}`} aria-label={`Round ${roundIndex + 1} name`} placeholder={`Round ${roundIndex + 1} name`} value={round.name} maxLength={80} onChange={event => setGame(previous => ({ ...previous, rounds: previous.rounds.map(item => item.id === round.id ? { ...item, name: event.target.value } : item) }))} className="h-12 rounded-xl bg-background placeholder:text-muted-foreground" />
+                <Input id={`round-${round.id}`} aria-label={`Round ${roundIndex + 1} name`} placeholder={`Round ${roundIndex + 1} name`} value={round.name} maxLength={80} onChange={event => setGame(previous => ({ ...previous, rounds: previous.rounds.map(item => item.id === round.id ? { ...item, name: event.target.value } : item) }))} className="h-12 rounded-xl bg-transparent placeholder:text-muted-foreground" />
                 <MediaUpload id={`music-${round.id}`} label={`Add music to round ${roundIndex + 1}`} musicOnly media={round.music ? [round.music] : []} onChange={media => setGame(previous => ({ ...previous, rounds: previous.rounds.map(item => item.id === round.id ? { ...item, music: media[0] } : item) }))} />
               </div>
               <CountSelect id={`count-${round.id}`} label="Number of questions" count={round.questions.length} maximum={20} onChange={count => resizeQuestions(round.id, count)} />
@@ -68,15 +68,15 @@ export function NewGameDialog({ onClose, onSave, onDelete, initialGame }: { onCl
               <h3 className="font-semibold text-primary">Question {questionIndex + 1}</h3>
               <div className="grid gap-6 md:grid-cols-2">
                 <div className="space-y-3">
-                  <Textarea id={`question-${question.id}`} aria-label={`Round ${roundIndex + 1}, question ${questionIndex + 1}`} value={question.text} onChange={event => updateQuestion(round.id, question.id, { text: event.target.value })} placeholder="Question" maxLength={4000} className="min-h-28 rounded-xl bg-background placeholder:text-muted-foreground" />
+                  <Textarea id={`question-${question.id}`} aria-label={`Round ${roundIndex + 1}, question ${questionIndex + 1}`} value={question.text} onChange={event => updateQuestion(round.id, question.id, { text: event.target.value })} placeholder="Question" maxLength={4000} className="min-h-28 rounded-xl bg-transparent placeholder:text-muted-foreground" />
                   <MediaUpload id={`question-files-${question.id}`} label={`Add media to round ${roundIndex + 1}, question ${questionIndex + 1}`} media={question.questionMedia} onChange={questionMedia => updateQuestion(round.id, question.id, { questionMedia })} />
                 </div>
                 <div className="space-y-3">
-                  <Textarea id={`answer-${question.id}`} aria-label={`Answer to round ${roundIndex + 1}, question ${questionIndex + 1}`} value={question.answer} onChange={event => updateQuestion(round.id, question.id, { answer: event.target.value })} placeholder="Answer" maxLength={4000} className="min-h-28 rounded-xl bg-background placeholder:text-muted-foreground" />
+                  <Textarea id={`answer-${question.id}`} aria-label={`Answer to round ${roundIndex + 1}, question ${questionIndex + 1}`} value={question.answer} onChange={event => updateQuestion(round.id, question.id, { answer: event.target.value })} placeholder="Answer" maxLength={4000} className="min-h-28 rounded-xl bg-transparent placeholder:text-muted-foreground" />
                   <MediaUpload id={`answer-files-${question.id}`} label={`Add media to answer ${questionIndex + 1} in round ${roundIndex + 1}`} media={question.answerMedia} onChange={answerMedia => updateQuestion(round.id, question.id, { answerMedia })} />
                 </div>
               </div>
-              <Textarea id={`notes-${question.id}`} aria-label={`Supplemental host notes for round ${roundIndex + 1}, question ${questionIndex + 1}`} value={question.hostNotes || ''} onChange={event => updateQuestion(round.id, question.id, { hostNotes: event.target.value })} placeholder="Supplemental text (host only · shown after answer reveal)" maxLength={4000} className="min-h-24 rounded-xl bg-background placeholder:text-muted-foreground" />
+              <Textarea id={`notes-${question.id}`} aria-label={`Supplemental host notes for round ${roundIndex + 1}, question ${questionIndex + 1}`} value={question.hostNotes || ''} onChange={event => updateQuestion(round.id, question.id, { hostNotes: event.target.value })} placeholder="Supplemental text (host only · shown after answer reveal)" maxLength={4000} className="min-h-24 rounded-xl bg-transparent placeholder:text-muted-foreground" />
             </section>)}
           </section>)}
         </fieldset>
