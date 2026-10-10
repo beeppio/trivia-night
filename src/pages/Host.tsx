@@ -190,6 +190,7 @@ export default function Host() {
         <h1 className="flex items-center gap-3 text-2xl font-semibold text-primary sm:text-3xl"><Crown aria-hidden="true" className="h-7 w-7 shrink-0 sm:h-8 sm:w-8" />Host Dashboard</h1>
         <div className="flex flex-wrap gap-2">
           <Button asChild variant="outline" className="rounded-xl"><Link to={`/player/${PREVIEW_ROOM}?preview=1`} target="_blank" rel="noopener noreferrer"><Eye className="mr-2 h-4 w-4" /> Player preview</Link></Button>
+          <Button asChild variant="outline" className="rounded-xl border-primary/40 bg-primary/10 text-primary"><Link to="/tv" target="_blank" rel="noopener noreferrer"><Monitor className="mr-2 h-4 w-4" /> Dev TV preview</Link></Button>
           <Button asChild className="rounded-xl"><Link to={`/display/${PREVIEW_ROOM}`} target="_blank" rel="noopener noreferrer"><Monitor className="mr-2 h-4 w-4" /> Open display</Link></Button>
         </div>
       </div>

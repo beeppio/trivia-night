@@ -9,6 +9,7 @@ import Host from "./pages/Host";
 import Join from "./pages/Join";
 import Player from "./pages/Player";
 import Display from "./pages/Display";
+import TV from "./pages/TV";
 import { PartyThemeProvider } from "./components/PartyLayout";
 
 const queryClient = new QueryClient();
@@ -26,6 +27,7 @@ const App = () => (
             <Route path="/join" element={<Join />} />
             <Route path="/play" element={<Join />} />
             <Route path="/player/:roomCode" element={<Player />} />
+            <Route path="/tv" element={<TV />} />
             <Route path="/display/:roomCode" element={<Display />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
