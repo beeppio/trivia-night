@@ -3,14 +3,14 @@ import { Button } from '@/components/ui/button';
 import type { PlayerProfile } from '@/hooks/use-local-session';
 
 export type Team = PlayerProfile;
-export type TeamAnswer = { teamId: string; answer: string; grade?: number };
+export type TeamAnswer = { teamId: string; answer: string; grade?: number; submitted?: boolean };
 
 export function TeamAnswers({ teams, answers, points, rightAnswer, onGrade }: { teams: Team[]; answers: TeamAnswer[]; points: number; rightAnswer: string; onGrade: (teamId: string, grade: number) => void }) {
   return <section className="mt-7 space-y-4 border-t-2 border-dotted border-primary/60 pt-6">
     <div className="flex flex-wrap items-center justify-between gap-3"><h2 className="text-lg font-semibold text-primary">Team answers</h2><span className="text-sm text-muted-foreground">{points} points per correct answer</span></div>
     {teams.length === 0 ? <p className="text-sm text-muted-foreground">Add a test player below to submit team answers.</p> : <ul className="space-y-3">{teams.map(team => {
       const submission = answers.find(answer => answer.teamId === team.id);
-      return <li key={team.id} className="space-y-3 rounded-xl border border-border bg-secondary/20 p-4">
+      return <li key={team.id} className={`space-y-3 rounded-xl border p-4 ${submission && submission.submitted !== false ? 'border-border bg-secondary/20' : 'border-slate-500/40 bg-slate-500/15 text-slate-300'}`}>
         <div className="flex items-center justify-between gap-3"><h3 className="font-semibold">{team.name}</h3>{submission?.grade !== undefined && <span className="text-sm font-semibold text-primary">{submission.grade * points} points</span>}</div>
         <p className="whitespace-pre-wrap break-words text-sm"><span className="font-semibold text-primary">Team's Answer: </span>{submission?.answer || 'Waiting for an answer…'}</p>
         <p className="whitespace-pre-wrap break-words text-sm"><span className="font-semibold text-primary">Right Answer: </span>{rightAnswer}</p>

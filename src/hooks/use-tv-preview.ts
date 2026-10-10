@@ -11,7 +11,7 @@ export function useTVPreview(session: PublicSession | null) {
     const target = preview.current;
     if (!target || target.closed) return;
     const current = latest.current;
-    target.postMessage({ type: '285-tv-session', session: current ? { ...current, media: [], answerMedia: [], results: undefined, answer: undefined, rankings: current.rankings.map(({ frames, ...team }) => team) } : null }, window.location.origin);
+    target.postMessage({ type: '285-tv-session', session: current ? { ...current, media: [], answerMedia: [], rankings: current.rankings.map(({ frames, ...team }) => team) } : null }, window.location.origin);
   };
 
   useEffect(() => {

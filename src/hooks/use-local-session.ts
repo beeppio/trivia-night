@@ -25,6 +25,7 @@ export type PublicSession = {
   open: boolean;
   ended: boolean;
   rankings: (PlayerProfile & { score: number })[];
+  submittedTeamIds?: string[];
   answer?: string;
   answerMedia?: GameMedia[];
   results?: PublicResult[];

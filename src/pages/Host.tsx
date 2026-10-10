@@ -98,8 +98,9 @@ export default function Host() {
     runId, title: activeGame.title, waiting: stage === 'waiting', preparing: stage === 'preparing', questionPoints: fullPoints, mediaPausedAt, answerMediaPausedAt, roundName: stage === 'waiting' ? '' : question.roundName, roundDescription: question.roundDescription?.trim() || undefined, roundIndex: question.roundIndex, questionIndex: question.questionIndex,
     text: stage === 'waiting' || stage === 'preparing' ? '' : question.text, media: stage === 'waiting' || stage === 'preparing' ? [] : question.questionMedia, imagesRevealed, videoStartedAt, answerMediaStartedAt, deadline, duration: deadline ? questionDuration : duration,
     open: stage === 'question' && deadline !== null, ended: stage === 'ended', rankings: scoredTeams,
+    submittedTeamIds: (answers[runId] || []).filter(answer => answer.submitted !== false).map(answer => answer.teamId),
     ...(stage === 'reveal' ? { answer: question.answer, answerMedia: question.answerMedia, results: (publishedResults[runId] || []).map(result => ({ ...result, points: (result.grade ?? 0) * fullPoints })) } : {}),
-  }), [activeGame, question, stage, runId, imagesRevealed, videoStartedAt, mediaPausedAt, answerMediaPausedAt, answerMediaStartedAt, deadline, questionDuration, duration, scoredTeams, publishedResults, fullPoints]);
+  }), [activeGame, question, stage, runId, imagesRevealed, videoStartedAt, mediaPausedAt, answerMediaPausedAt, answerMediaStartedAt, deadline, questionDuration, duration, scoredTeams, publishedResults, fullPoints, answers]);
 
   const openTVPreview = useTVPreview(publicSession);
 
@@ -124,7 +125,7 @@ export default function Host() {
   };
   function completeAnswers() {
     const submitted = answers[runId] || [];
-    return [...submitted, ...teams.filter(team => !submitted.some(answer => answer.teamId === team.id)).map(team => ({ teamId: team.id, answer: 'No Answer', grade: 0 }))];
+    return [...submitted, ...teams.filter(team => !submitted.some(answer => answer.teamId === team.id)).map(team => ({ teamId: team.id, answer: 'No Answer', grade: 0, submitted: false }))];
   }
   function closeQuestion() {
     setAnswers(previous => ({ ...previous, [runId]: completeAnswers() }));
@@ -248,8 +249,8 @@ export default function Host() {
           </div>}
         </section>
         <aside className="space-y-5">
-          <section className="panel p-5"><p className="eyebrow">ROOM CODE</p><div className="mt-3 flex items-center justify-between"><span className="display-font text-4xl font-bold tracking-[.15em] text-primary">{PREVIEW_ROOM}</span><Button variant="ghost" size="icon" aria-label="Copy room code" className="rounded-xl" onClick={copyCode}><Copy className="h-4 w-4" /></Button></div><p className="mt-3 text-xs text-muted-foreground">Connected across tabs in this browser only</p></section>
-          <HostPlayers players={scoredTeams} />
+          <section className="panel p-5"><p className="eyebrow">ROOM CODE</p><div className="mt-3 flex items-center justify-between"><span className="display-font text-4xl font-bold tracking-[.15em] text-primary">{PREVIEW_ROOM}</span><Button variant="ghost" size="icon" aria-label="Copy room code" className="rounded-xl" onClick={copyCode}><Copy className="h-4 w-4" /></Button></div></section>
+          <HostPlayers players={scoredTeams} showReadiness={stage === 'lobby' || stage === 'waiting'} showAnswers={stage === 'question' || stage === 'closed'} submittedTeamIds={publicSession?.submittedTeamIds} />
           <Buzzer duration={duration} remaining={remaining} running={deadline !== null} countdownDuration={questionDuration} deadline={deadline} onChange={changeDuration} />
           {activeGame && stage !== 'ended' && <section className="panel space-y-4 p-5"><h2 className="font-semibold">Round music</h2><Button variant="outline" className="w-full rounded-xl" onClick={() => music.toggleMusic(activeGame.rounds[question.roundIndex].music)}>{music.enabled ? 'Mute music' : 'Enable music'}</Button><label className="flex items-center gap-3 text-xs text-muted-foreground">Volume<input aria-label="Round music volume" type="range" min="0" max="1" step="0.05" value={music.volume} onChange={event => music.changeVolume(Number(event.target.value))} className="w-full accent-primary" /></label></section>}
           <Button variant="outline" className="w-full rounded-xl border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive" disabled={stage === 'lobby' || stage === 'ended'} onClick={() => setConfirmEnd(true)}>End game</Button>
