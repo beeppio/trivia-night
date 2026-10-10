@@ -8,12 +8,14 @@ import { PartyLayout } from '@/components/PartyLayout';
 import { NewGameDialog } from '@/components/NewGameDialog';
 import { GameMediaList } from '@/components/GameMedia';
 import { HostPlayers } from '@/components/HostPlayers';
+import { DevPlayerWindows } from '@/components/DevPlayerWindows';
+import { TeamAnswers, type Team, type TeamAnswer } from '@/components/TeamAnswers';
+import { Buzzer } from '@/components/Buzzer';
+import { QuestionMedia } from '@/components/QuestionMedia';
 import { PREVIEW_ROOM } from '@/lib/preview-data';
 import { loadGames, readLegacyDrafts, saveGame, deleteGame, type LocalGame } from '@/lib/local-games';
 import { useRoundMusic } from '@/hooks/use-round-music';
-import { Buzzer } from '@/components/Buzzer';
-import { QuestionMedia } from '@/components/QuestionMedia';
-import { useHostSession, useRemainingSeconds, type PublicSession } from '@/hooks/use-local-session';
+import { useHostSession, useRemainingSeconds, type PlayerSubmission, type PublicSession } from '@/hooks/use-local-session';
 
 type Stage = 'lobby' | 'question' | 'closed' | 'reveal' | 'ended';
 
@@ -35,6 +37,10 @@ export default function Host() {
   const [imagesRevealed, setImagesRevealed] = useState(false);
   const [videoStartedAt, setVideoStartedAt] = useState<number | null>(null);
   const [runId, setRunId] = useState('');
+  const [teams, setTeams] = useState<Team[]>([]);
+  const [answers, setAnswers] = useState<Record<string, TeamAnswer[]>>({});
+  const [points, setPoints] = useState<Record<string, number>>({});
+  const [questionRuns, setQuestionRuns] = useState<Record<number, string>>({});
   const remaining = useRemainingSeconds(deadline, deadline ? questionDuration : duration);
   const music = useRoundMusic();
 
@@ -86,11 +92,37 @@ export default function Host() {
     open: stage === 'question' && deadline !== null, ended: stage === 'ended',
     ...(stage === 'reveal' ? { answer: question.answer, answerMedia: question.answerMedia } : {}),
   }), [activeGame, question, stage, runId, imagesRevealed, videoStartedAt, deadline, questionDuration, duration]);
-  useHostSession(publicSession);
+
+  function receiveSubmission(submission: PlayerSubmission) {
+    if (submission.runId !== runId || stage !== 'question' || !deadline || Date.now() >= deadline) return;
+    setTeams(previous => previous.some(team => team.id === submission.teamId) ? previous : [...previous, { id: submission.teamId, name: submission.name }]);
+    setAnswers(previous => {
+      const existing = previous[runId] || [];
+      if (existing.some(answer => answer.teamId === submission.teamId)) return previous;
+      return { ...previous, [runId]: [...existing, { teamId: submission.teamId, answer: submission.answer }] };
+    });
+  }
+  useHostSession(publicSession, receiveSubmission);
+
+  const fullPoints = points[runId] ?? 10;
+  const gradeAnswer = (teamId: string, grade: number) => setAnswers(previous => ({ ...previous, [runId]: (previous[runId] || []).map(answer => answer.teamId === teamId ? { ...answer, grade } : answer) }));
+  const scoredTeams = teams.map(team => ({ ...team, score: Object.entries(answers).reduce((total, [id, submissions]) => total + (submissions.find(answer => answer.teamId === team.id)?.grade ?? 0) * (points[id] ?? 10), 0) }));
+
+  const addPlayer = () => setTeams(previous => [...previous, { id: crypto.randomUUID(), name: `Player ${previous.filter(team => /^Player \d+$/.test(team.name)).length + 1}` }]);
 
   const playable = (game: LocalGame) => game.rounds.every(round => round.questions.length > 0 && round.questions.every(item => item.text.trim() && item.answer.trim()));
-  const resetQuestion = () => { setStage('question'); setDeadline(null); setImagesRevealed(false); setVideoStartedAt(null); setRunId(crypto.randomUUID()); };
-  const startGame = (game: LocalGame) => { setActiveGame(game); setIndex(0); resetQuestion(); music.switchTrack(game.rounds[0].music); };
+  const resetQuestion = () => {
+    const nextRun = crypto.randomUUID();
+    setAnswers(previous => { const updated = { ...previous }; delete updated[runId]; return updated; });
+    setQuestionRuns(previous => ({ ...previous, [index]: nextRun }));
+    setStage('question'); setDeadline(null); setImagesRevealed(false); setVideoStartedAt(null); setRunId(nextRun);
+  };
+  const startGame = (game: LocalGame) => {
+    const firstRun = crypto.randomUUID();
+    setAnswers({}); setPoints({}); setQuestionRuns({ 0: firstRun }); setRunId(firstRun);
+    setActiveGame(game); setIndex(0); setStage('question'); setDeadline(null); setImagesRevealed(false); setVideoStartedAt(null);
+    music.switchTrack(game.rounds[0].music);
+  };
   const startBuzzer = () => { if (deadline === null && stage === 'question') { setQuestionDuration(duration); setDeadline(Date.now() + duration * 1000); } };
   const revealQuestion = () => { setImagesRevealed(true); startBuzzer(); };
   const playVideo = () => { setVideoStartedAt(Date.now()); startBuzzer(); };
@@ -98,7 +130,11 @@ export default function Host() {
     const differentRound = questions[next].roundIndex !== question.roundIndex;
     if (differentRound) music.switchTrack(activeGame?.rounds[questions[next].roundIndex].music);
     setIndex(next);
-    resetQuestion();
+    const nextRun = questionRuns[next] || crypto.randomUUID();
+    setQuestionRuns(previous => ({ ...previous, [next]: nextRun }));
+    setRunId(nextRun);
+    setStage(answers[nextRun]?.length ? 'closed' : 'question');
+    setDeadline(null); setImagesRevealed(false); setVideoStartedAt(null);
   };
   const copyCode = async () => {
     try { await navigator.clipboard.writeText(PREVIEW_ROOM); toast.success('Preview room code copied'); }
@@ -106,7 +142,7 @@ export default function Host() {
   };
 
   return <PartyLayout>
-    <main className="mx-auto max-w-7xl px-5 py-9 sm:px-8">
+    <main className="mx-auto max-w-7xl px-5 pb-28 pt-9 sm:px-8">
       <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
         <h1 className="flex items-center gap-3 text-2xl font-semibold text-primary sm:text-3xl"><Crown aria-hidden="true" className="h-7 w-7 shrink-0 sm:h-8 sm:w-8" />Host Dashboard</h1>
         <div className="flex flex-wrap gap-2">
@@ -139,7 +175,7 @@ export default function Host() {
             <QuestionMedia key={runId} media={question.questionMedia} imagesRevealed={imagesRevealed} videoStartedAt={videoStartedAt} />
             <div className="flex flex-wrap gap-2">
               {question.questionMedia.some(media => media.kind === 'image') && <Button className="rounded-xl text-white" disabled={imagesRevealed || stage !== 'question'} onClick={revealQuestion}>Reveal image</Button>}
-              {!question.questionMedia.some(media => media.kind === 'image') && <Button className="rounded-xl text-white" disabled={deadline !== null || stage !== 'question'} onClick={revealQuestion}>Reveal · start buzzer</Button>}
+              {!question.questionMedia.some(media => media.kind === 'image') && <Button className="rounded-xl text-white" disabled={deadline !== null || stage !== 'question'} onClick={revealQuestion}>Start question</Button>}
               {question.questionMedia.some(media => media.kind === 'video') && <Button variant="outline" className="rounded-xl text-primary" disabled={stage !== 'question'} onClick={playVideo}><Play className="mr-2 h-4 w-4 fill-current" />{videoStartedAt ? 'Restart video for players' : 'Play video for players'}</Button>}
             </div>
             <section className="space-y-4 border-t-2 border-dotted border-primary/60 pt-6">
@@ -148,6 +184,7 @@ export default function Host() {
               <GameMediaList media={question.answerMedia} />
               {question.hostNotes?.trim() && <div className="space-y-2"><h3 className="text-sm font-semibold text-primary">Host notes</h3><p className="whitespace-pre-wrap break-words text-sm leading-6">{question.hostNotes}</p></div>}
             </section>
+            <TeamAnswers teams={teams} answers={answers[runId] || []} points={fullPoints} onPointsChange={value => setPoints(previous => ({ ...previous, [runId]: value }))} onGrade={gradeAnswer} />
             {stage === 'closed' && <p role="status" className="text-sm text-accent">Answers locked. Move to the next question to unlock them.</p>}
             {stage === 'reveal' && <p role="status" className="text-sm text-primary">Answer revealed to connected browser tabs.</p>}
           </div> : null}
@@ -161,13 +198,14 @@ export default function Host() {
         </section>
         <aside className="space-y-5">
           <section className="panel p-5"><p className="eyebrow">ROOM CODE</p><div className="mt-3 flex items-center justify-between"><span className="display-font text-4xl font-bold tracking-[.15em] text-primary">{PREVIEW_ROOM}</span><Button variant="ghost" size="icon" aria-label="Copy room code" className="rounded-xl" onClick={copyCode}><Copy className="h-4 w-4" /></Button></div><p className="mt-3 text-xs text-muted-foreground">Connected across tabs in this browser only</p></section>
-          <HostPlayers />
-          <Buzzer duration={duration} remaining={remaining} running={deadline !== null} onChange={changeDuration} />
+          <HostPlayers players={scoredTeams} />
+          <Buzzer duration={duration} remaining={remaining} running={deadline !== null} countdownDuration={questionDuration} deadline={deadline} onChange={changeDuration} />
           {activeGame && stage !== 'ended' && <section className="panel space-y-4 p-5"><h2 className="font-semibold">Round music</h2><p className="break-words text-xs text-muted-foreground">{activeGame.rounds[question.roundIndex].music?.name || 'No music for this round'}</p><Button variant="outline" className="w-full rounded-xl" onClick={() => music.toggleMusic(activeGame.rounds[question.roundIndex].music)}>{music.enabled ? 'Mute music' : 'Enable music'}</Button><label className="flex items-center gap-3 text-xs text-muted-foreground">Volume<input aria-label="Round music volume" type="range" min="0" max="1" step="0.05" value={music.volume} onChange={event => music.changeVolume(Number(event.target.value))} className="w-full accent-primary" /></label></section>}
           <Button variant="outline" className="w-full rounded-xl border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive" disabled={stage === 'lobby' || stage === 'ended'} onClick={() => setConfirmEnd(true)}>End game</Button>
         </aside>
       </div>
     </main>
+    <DevPlayerWindows teams={teams} session={publicSession} onAdd={addPlayer} onSubmit={receiveSubmission} />
     {editor && <NewGameDialog initialGame={editor.game} onClose={() => setEditor(null)} onSave={persistGame} onDelete={removeGame} />}
     <Dialog open={confirmEnd} onOpenChange={setConfirmEnd}><DialogContent className="rounded-2xl"><DialogHeader><DialogTitle>End this game?</DialogTitle></DialogHeader><p className="text-sm text-muted-foreground">Your saved questions and files will be kept.</p><div className="mt-4 flex justify-end gap-3"><Button variant="outline" className="rounded-xl" onClick={() => setConfirmEnd(false)}>Keep playing</Button><Button className="rounded-xl bg-destructive hover:bg-destructive/90" onClick={() => { music.switchTrack(); setStage('ended'); setDeadline(null); setConfirmEnd(false); }}>End game</Button></div></DialogContent></Dialog>
   </PartyLayout>;

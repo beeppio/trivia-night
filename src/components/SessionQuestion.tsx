@@ -6,7 +6,7 @@ import { QuestionMedia } from '@/components/QuestionMedia';
 import { GameMediaList } from '@/components/GameMedia';
 import { formatSeconds, useRemainingSeconds, type PublicSession } from '@/hooks/use-local-session';
 
-export function SessionQuestion({ session, player = false }: { session: PublicSession; player?: boolean }) {
+export function SessionQuestion({ session, player = false, onSubmit }: { session: PublicSession; player?: boolean; onSubmit?: (answer: string) => void }) {
   const [answer, setAnswer] = useState('');
   const [submitted, setSubmitted] = useState(false);
   const remaining = useRemainingSeconds(session.deadline, session.duration);
@@ -14,6 +14,7 @@ export function SessionQuestion({ session, player = false }: { session: PublicSe
   const submit = (event: FormEvent) => {
     event.preventDefault();
     if (locked || submitted || !answer.trim() || !session.deadline || Date.now() >= session.deadline) return;
+    onSubmit?.(answer.trim());
     setSubmitted(true);
   };
   if (session.ended) return <section className="py-12 text-center"><h1 className="text-3xl font-bold text-primary">Game complete</h1></section>;
@@ -24,7 +25,7 @@ export function SessionQuestion({ session, player = false }: { session: PublicSe
     {player && <form onSubmit={submit} className="space-y-4">
       <Textarea aria-label="Your answer" placeholder="Type your answer" maxLength={4000} value={answer} disabled={locked || submitted} onChange={event => setAnswer(event.target.value)} className="min-h-28 rounded-xl bg-transparent" />
       <Button type="submit" disabled={locked || submitted || !answer.trim()} className="h-12 w-full rounded-xl text-white">{submitted ? <><Check className="mr-2 h-4 w-4" /> Answer locked in</> : locked ? <><LockKeyhole className="mr-2 h-4 w-4" /> Answers locked</> : 'Submit answer'}</Button>
-      <p role="status" className="text-center text-sm text-muted-foreground">{remaining === 0 || (locked && session.deadline !== null) ? 'Time is up. Wait for the next question.' : submitted ? 'Saved on this player screen only; scoring is not connected yet.' : session.deadline === null ? 'Wait for the host to reveal and start the buzzer.' : ''}</p>
+      <p role="status" className="text-center text-sm text-muted-foreground">{remaining === 0 || (locked && session.deadline !== null) ? 'Time is up. Wait for the next question.' : submitted ? 'Submitted to the host for review.' : session.deadline === null ? 'Wait for the host to start the question.' : ''}</p>
     </form>}
     {session.answer !== undefined && <section className="space-y-4 border-t-2 border-dotted border-primary/60 pt-6"><h2 className="text-sm font-semibold text-primary">Answer</h2><p className="whitespace-pre-wrap break-words text-xl text-white">{session.answer}</p><GameMediaList media={session.answerMedia || []} /></section>}
   </section>;

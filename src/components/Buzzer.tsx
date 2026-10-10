@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { formatSeconds } from '@/hooks/use-local-session';
 
-export function Buzzer({ duration, remaining, running, onChange }: { duration: number; remaining: number; running: boolean; onChange: (seconds: number) => void }) {
+export function Buzzer({ duration, remaining, running, countdownDuration, deadline, onChange }: { duration: number; remaining: number; running: boolean; countdownDuration: number; deadline: number | null; onChange: (seconds: number) => void }) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(String(duration));
   const save = () => {
@@ -21,6 +21,7 @@ export function Buzzer({ duration, remaining, running, onChange }: { duration: n
         <Button variant="ghost" size="icon" aria-label="Remove 5 seconds" disabled={duration <= 5} className="h-8 w-8 rounded-lg text-primary hover:bg-primary/15" onClick={() => onChange(Math.max(5, duration - 5))}><ChevronDown className="h-5 w-5" /></Button>
       </div>
     </div>
+    <div role="progressbar" aria-label="Buzzer time remaining" aria-valuemin={0} aria-valuemax={running ? countdownDuration : duration} aria-valuenow={remaining} className="mb-4 h-2.5 overflow-hidden rounded-full bg-secondary"><div style={{ width: `${Math.max(0, Math.min(100, (deadline ? Math.max(0, (deadline - Date.now()) / 1000) : duration) / (running ? countdownDuration : duration) * 100))}%` }} className="h-full rounded-full bg-primary transition-[width] duration-100 ease-linear motion-reduce:transition-none" /></div>
     <p className="text-center text-xs text-muted-foreground">{duration} seconds per question{running ? ' · changes apply next question' : ''}</p>
   </section>;
 }
