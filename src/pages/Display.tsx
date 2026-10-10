@@ -6,10 +6,13 @@ import { Brand } from '@/components/PartyLayout';
 import { QuestionCard } from '@/components/QuestionCard';
 import { Leaderboard } from '@/components/Leaderboard';
 import { PREVIEW_ROOM, PLAYER_URL, previewPlayers } from '@/lib/preview-data';
+import { SessionQuestion } from '@/components/SessionQuestion';
+import { usePlayerSession } from '@/hooks/use-local-session';
 
 export default function Display() {
   const { roomCode } = useParams();
   const [params] = useSearchParams();
+  const session = usePlayerSession();
   const view = params.get('view') || 'lobby';
   const fullscreen = async () => {
     try {
@@ -28,7 +31,7 @@ export default function Display() {
         <h1 className="text-4xl font-bold">No live room connected.</h1>
         <p className="mt-4 text-muted-foreground">Phase 1 includes a display preview for sample room {PREVIEW_ROOM}.</p>
         <Button asChild className="party-button mt-6"><Link to={`/display/${PREVIEW_ROOM}`}>Open sample display</Link></Button>
-      </div> : view === 'question' ? <div className="mx-auto w-full max-w-5xl">
+      </div> : session ? <div className="mx-auto w-full max-w-5xl"><SessionQuestion key={session.runId} session={session} /></div> : view === 'question' ? <div className="mx-auto w-full max-w-5xl">
         <div className="mb-7 flex items-center justify-between"><p className="eyebrow">ROUND 1 · THE WARM-UP · QUESTION 1</p><span className="display-font text-5xl font-bold tabular-nums text-primary">00:30</span></div>
         <QuestionCard large /><p className="mt-7 text-center text-sm text-muted-foreground">0 of 4 sample answers submitted · Static timer preview</p>
       </div> : view === 'leaderboard' ? <div className="mx-auto w-full max-w-3xl"><Leaderboard /></div> : <section className="mx-auto w-full max-w-3xl text-center">
@@ -45,7 +48,7 @@ export default function Display() {
       </section>}
     </main>
     <footer className="flex flex-col items-center justify-between gap-4 border-t border-border py-5 text-xs text-muted-foreground sm:flex-row">
-      <p>Public-display preview · Independent of host controls · No live synchronization</p>
+      <p>{session ? 'Connected to host in this browser' : 'Open the host in another tab of this browser to connect'}</p>
       <nav aria-label="Display preview layouts" className="flex gap-4">
         <Link className={view === 'lobby' ? 'text-primary' : 'hover:text-foreground'} to={`/display/${roomCode}`}>Lobby layout</Link>
         <Link className={view === 'question' ? 'text-primary' : 'hover:text-foreground'} to={`/display/${roomCode}?view=question`}>Question layout</Link>
