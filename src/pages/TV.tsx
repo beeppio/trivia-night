@@ -11,16 +11,22 @@ export default function TV() {
   const [directSession, setDirectSession] = useState<{ session: PublicSession | null } | null>(null);
   useEffect(() => {
     const host = window.opener;
-    if (!host) return;
+    const connection = new BroadcastChannel('285-trivia-tv-session');
+    connection.onmessage = event => {
+      if (event.data?.type === '285-tv-session') setDirectSession({ session: event.data.session });
+    };
     const receive = (event: MessageEvent) => {
-      if (event.origin !== window.location.origin || event.source !== host || event.data?.type !== '285-tv-session') return;
+      if (!host || event.origin !== window.location.origin || event.source !== host || event.data?.type !== '285-tv-session') return;
       setDirectSession({ session: event.data.session });
     };
     window.addEventListener('message', receive);
-    const request = () => { if (!host.closed) host.postMessage({ type: '285-tv-request' }, window.location.origin); };
+    const request = () => {
+      connection.postMessage({ type: '285-tv-request' });
+      if (host && !host.closed) host.postMessage({ type: '285-tv-request' }, window.location.origin);
+    };
     request();
     const interval = window.setInterval(request, 1000);
-    return () => { window.removeEventListener('message', receive); window.clearInterval(interval); };
+    return () => { window.removeEventListener('message', receive); window.clearInterval(interval); connection.close(); };
   }, []);
   const session = directSession ? directSession.session : broadcastSession;
   const waiting = !session || Boolean(session.waiting);

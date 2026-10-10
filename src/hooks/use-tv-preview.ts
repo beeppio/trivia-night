@@ -4,17 +4,24 @@ import type { PublicSession } from '@/hooks/use-local-session';
 
 export function useTVPreview(session: PublicSession | null) {
   const preview = useRef<Window | null>(null);
+  const channel = useRef<BroadcastChannel | null>(null);
   const latest = useRef(session);
   latest.current = session;
 
   const publish = () => {
-    const target = preview.current;
-    if (!target || target.closed) return;
     const current = latest.current;
-    target.postMessage({ type: '285-tv-session', session: current ? { ...current, media: [], answerMedia: [], rankings: current.rankings.map(({ frames, ...team }) => team) } : null }, window.location.origin);
+    const message = { type: '285-tv-session', session: current ? { ...current, media: [], answerMedia: [], rankings: current.rankings.map(({ frames, ...team }) => team) } : null };
+    channel.current?.postMessage(message);
+    const target = preview.current;
+    if (target && !target.closed) target.postMessage(message, window.location.origin);
   };
 
   useEffect(() => {
+    const connection = new BroadcastChannel('285-trivia-tv-session');
+    channel.current = connection;
+    connection.onmessage = event => {
+      if (event.data?.type === '285-tv-request') publish();
+    };
     const receive = (event: MessageEvent) => {
       if (event.origin !== window.location.origin || event.data?.type !== '285-tv-request' || !event.source) return;
       const source = event.source as Window;
@@ -28,7 +35,13 @@ export function useTVPreview(session: PublicSession | null) {
     };
     window.addEventListener('message', receive);
     const heartbeat = window.setInterval(publish, 1000);
-    return () => { window.removeEventListener('message', receive); window.clearInterval(heartbeat); };
+    publish();
+    return () => {
+      window.removeEventListener('message', receive);
+      window.clearInterval(heartbeat);
+      connection.close();
+      channel.current = null;
+    };
   }, []);
 
   useEffect(() => { publish(); }, [session]);
