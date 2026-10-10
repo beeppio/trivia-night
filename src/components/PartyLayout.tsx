@@ -28,7 +28,7 @@ export function PartyLayout({ children, showHeaderLogo = true }: { children: Rea
           <nav className="flex items-center gap-4 text-sm font-medium sm:gap-6">
             <NavLink to="/" className={({ isActive }) => isActive ? 'text-foreground' : 'text-muted-foreground hover:text-foreground'}>Home</NavLink>
             <NavLink to="/host" className="text-muted-foreground hover:text-foreground">Host</NavLink>
-            <NavLink to={`/player/${PREVIEW_ROOM}?preview=1`} className="text-muted-foreground hover:text-foreground">Player</NavLink>
+            <NavLink to="/play" className="text-muted-foreground hover:text-foreground">Player</NavLink>
           </nav>
         </div>
       </div>

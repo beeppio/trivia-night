@@ -63,7 +63,7 @@ export function useHostSession(session: PublicSession | null, onSubmit?: (submis
       if (event.data?.type === 'submit') {
         const submission = event.data.submission;
         const active = latest.current;
-        if (active?.open && active.deadline && Date.now() < active.deadline && submission?.runId === active.runId && typeof submission.teamId === 'string' && submission.teamId.length <= 100 && typeof submission.name === 'string' && submission.name.length <= 80 && typeof submission.answer === 'string' && submission.answer.trim() && submission.answer.length <= 4000) submitHandler.current?.(submission);
+        if (active?.open && (active.deadline === null || Date.now() < active.deadline) && submission?.runId === active.runId && typeof submission.teamId === 'string' && submission.teamId.length <= 100 && typeof submission.name === 'string' && submission.name.length <= 80 && typeof submission.answer === 'string' && submission.answer.trim() && submission.answer.length <= 4000) submitHandler.current?.(submission);
       }
     };
     return () => { connection.postMessage({ type: 'session', session: null }); connection.close(); channel.current = null; };

@@ -12,6 +12,7 @@ import { DevPlayerWindows } from '@/components/DevPlayerWindows';
 import { TeamAnswers, type Team, type TeamAnswer } from '@/components/TeamAnswers';
 import { Buzzer } from '@/components/Buzzer';
 import { QuestionMedia } from '@/components/QuestionMedia';
+import { HomepageMusic } from '@/components/HomepageMusic';
 import { PREVIEW_ROOM } from '@/lib/preview-data';
 import { loadGames, readLegacyDrafts, saveGame, deleteGame, type LocalGame } from '@/lib/local-games';
 import { useHostSession, useRemainingSeconds, type PlayerSubmission, type PublicSession } from '@/hooks/use-local-session';
@@ -108,7 +109,7 @@ export default function Host() {
   const publicSession = useMemo<PublicSession | null>(() => !activeGame || !question || stage === 'lobby' ? null : ({
     runId, title: activeGame.title, waiting: stage === 'waiting', preparing: stage === 'preparing', questionPoints: fullPoints, mediaPausedAt, answerMediaPausedAt, roundName: stage === 'waiting' ? '' : question.roundName, roundDescription: question.roundDescription?.trim() || undefined, roundIndex: question.roundIndex, questionIndex: question.questionIndex,
     text: stage === 'waiting' || stage === 'preparing' ? '' : question.text, media: stage === 'waiting' || stage === 'preparing' ? [] : question.questionMedia, imagesRevealed, videoStartedAt, answerMediaStartedAt, deadline, duration: deadline ? questionDuration : duration,
-    open: stage === 'question' && deadline !== null, ended: stage === 'ended', rankings: scoredTeams,
+    open: stage === 'question', ended: stage === 'ended', rankings: scoredTeams,
     submittedTeamIds: (answers[runId] || []).filter(answer => answer.submitted !== false).map(answer => answer.teamId),
     questionType: question.type || 'text', orderItems: question.type === 'order' ? orderItems : undefined,
     ...(stage === 'reveal' ? { answer: question.answer, answerMedia: question.answerMedia, results: (publishedResults[runId] || []).map(result => ({ ...result, points: (result.grade ?? 0) * fullPoints })) } : {}),
@@ -119,12 +120,12 @@ export default function Host() {
     text: '', media: [], imagesRevealed: false, videoStartedAt: null, answerMediaStartedAt: null,
     deadline: null, duration, open: false, ended: false,
     rankings: scoredTeams.map(team => ({ ...team, score: 0 })),
-  }), roundMusic: publicSession && !publicSession.ended ? publicSession.waiting ? activeGame?.homeMusic : activeGame?.rounds[publicSession.roundIndex].music : undefined, roundMusicStartedAt: musicStartedAt, musicMuted, musicTalking, musicVolume }), [publicSession, duration, scoredTeams, activeGame, musicStartedAt, musicMuted, musicTalking, musicVolume]);
+  }), roundMusic: publicSession && !publicSession.waiting && !publicSession.ended ? activeGame?.rounds[publicSession.roundIndex].music : undefined, roundMusicStartedAt: musicStartedAt, musicMuted, musicTalking, musicVolume }), [publicSession, duration, scoredTeams, activeGame, musicStartedAt, musicMuted, musicTalking, musicVolume]);
 
   const openTVPreview = useTVPreview(tvSession);
 
   function receiveSubmission(submission: PlayerSubmission) {
-    if (submission.runId !== runId || stage !== 'question' || !deadline || Date.now() >= deadline) return;
+    if (submission.runId !== runId || stage !== 'question' || (deadline !== null && Date.now() >= deadline)) return;
     setTeams(previous => previous.some(team => team.id === submission.teamId) ? previous : [...previous, { id: submission.teamId, name: submission.name }]);
     setAnswers(previous => {
       const existing = previous[runId] || [];
@@ -229,9 +230,9 @@ export default function Host() {
       <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
         <h1 className="flex items-center gap-3 text-2xl font-semibold text-primary sm:text-3xl"><Crown aria-hidden="true" className="h-7 w-7 shrink-0 sm:h-8 sm:w-8" />Host Dashboard</h1>
         <div className="flex flex-wrap gap-2">
-          <Button asChild variant="outline" className="rounded-xl"><Link to={`/player/${PREVIEW_ROOM}?preview=1`} target="_blank" rel="noopener noreferrer"><Eye className="mr-2 h-4 w-4" /> Player preview</Link></Button>
+          <Button asChild variant="outline" className="rounded-xl"><Link to={`/play?room=${PREVIEW_ROOM}`} target="_blank" rel="noopener noreferrer"><Eye className="mr-2 h-4 w-4" /> Player preview</Link></Button>
           <Button variant="outline" className="rounded-xl border-primary/40 bg-primary/10 text-primary" onClick={openTVPreview}><Monitor className="mr-2 h-4 w-4" /> Dev TV preview</Button>
-          <Button asChild className="rounded-xl"><Link to={`/display/${PREVIEW_ROOM}`} target="_blank" rel="noopener noreferrer"><Monitor className="mr-2 h-4 w-4" /> Open display</Link></Button>
+          <Button asChild className="rounded-xl"><Link to="/tv" target="_blank" rel="noopener noreferrer"><Monitor className="mr-2 h-4 w-4" /> Open TV</Link></Button>
         </div>
       </div>
       <div className="grid gap-5 lg:grid-cols-[1fr_320px]">
@@ -277,9 +278,10 @@ export default function Host() {
         </section>
         <aside className="space-y-5">
           <section className="panel p-5"><p className="eyebrow">ROOM CODE</p><div className="mt-3 flex items-center justify-between"><span className="display-font text-4xl font-bold tracking-[.15em] text-primary">{PREVIEW_ROOM}</span><Button variant="ghost" size="icon" aria-label="Copy room code" className="rounded-xl" onClick={copyCode}><Copy className="h-4 w-4" /></Button></div></section>
+          <HomepageMusic />
           <HostPlayers players={scoredTeams} showReadiness={stage === 'lobby' || stage === 'waiting'} showAnswers={stage === 'question' || stage === 'closed'} submittedTeamIds={publicSession?.submittedTeamIds} />
           <Buzzer duration={duration} remaining={remaining} running={deadline !== null} countdownDuration={questionDuration} deadline={deadline} onChange={changeDuration} onStart={startBuzzer} canStart={stage === 'question' && deadline === null} />
-          {activeGame && stage !== 'ended' && <section className="panel space-y-4 p-5"><h2 className="font-semibold">{stage === 'waiting' ? 'Home-screen music' : 'Round music'}</h2><div className="flex gap-2"><Button variant="outline" className="flex-1 rounded-xl text-primary" aria-pressed={musicMuted} onClick={() => setMusicMuted(previous => !previous)}>{musicMuted ? <VolumeX className="mr-2 h-4 w-4" /> : <Volume2 className="mr-2 h-4 w-4" />}{musicMuted ? 'Unmute' : 'Mute'}</Button><Button variant="outline" size="icon" aria-label="Talk over music" title="Talk over music" aria-pressed={musicTalking} className={`rounded-xl text-primary ${musicTalking ? 'bg-primary/20 ring-1 ring-primary' : ''}`} onClick={() => setMusicTalking(previous => !previous)}><Speech className="h-5 w-5" /></Button></div><p className="text-xs text-muted-foreground">{musicTalking ? 'Talk-over on · music lowered to 20%' : 'Music plays on the TV only. Click the speaking icon to lower it while you talk.'}</p><label className="flex items-center gap-3 text-xs text-muted-foreground">Volume<input aria-label="Round music volume" type="range" min="0" max="1" step="0.05" value={musicVolume} onChange={event => setMusicVolume(Number(event.target.value))} className="w-full accent-primary" /></label></section>}
+          {activeGame && stage !== 'waiting' && stage !== 'ended' && <section className="panel space-y-4 p-5"><h2 className="font-semibold">Round music</h2><div className="flex gap-2"><Button variant="outline" className="flex-1 rounded-xl text-primary" aria-pressed={musicMuted} onClick={() => setMusicMuted(previous => !previous)}>{musicMuted ? <VolumeX className="mr-2 h-4 w-4" /> : <Volume2 className="mr-2 h-4 w-4" />}{musicMuted ? 'Unmute' : 'Mute'}</Button><Button variant="outline" size="icon" aria-label="Talk over music" title="Talk over music" aria-pressed={musicTalking} className={`rounded-xl text-primary ${musicTalking ? 'bg-primary/20 ring-1 ring-primary' : ''}`} onClick={() => setMusicTalking(previous => !previous)}><Speech className="h-5 w-5" /></Button></div><p className="text-xs text-muted-foreground">{musicTalking ? 'Talk-over on · music lowered to 20%' : 'Music plays on the TV only. Click the speaking icon to lower it while you talk.'}</p><label className="flex items-center gap-3 text-xs text-muted-foreground">Volume<input aria-label="Round music volume" type="range" min="0" max="1" step="0.05" value={musicVolume} onChange={event => setMusicVolume(Number(event.target.value))} className="w-full accent-primary" /></label></section>}
           <Button variant="outline" className="w-full rounded-xl border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive" disabled={stage === 'lobby' || stage === 'ended'} onClick={() => setConfirmEnd(true)}>End game</Button>
         </aside>
       </div>

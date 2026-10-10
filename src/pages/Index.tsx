@@ -14,9 +14,9 @@ export default function Index() {
           <p className="mt-6 text-base leading-7 text-muted-foreground sm:text-lg">
             On your phone, go to the websites and enter the room code
           </p>
-          <p className="display-font mt-2 text-2xl font-semibold text-primary sm:text-3xl">
+          <a href="/play" className="display-font mt-2 block break-all text-2xl font-semibold text-primary underline-offset-4 hover:underline sm:text-3xl">
             {PLAYER_URL}
-          </p>
+          </a>
           <div className="mx-auto mt-8 w-fit rounded-2xl border border-primary/30 bg-card px-7 py-6 sm:px-12 sm:py-8">
             <p className="eyebrow">Room code</p>
             <p className="display-font mt-3 pl-[.15em] text-5xl font-bold tracking-[.15em] text-primary sm:text-7xl" aria-label={`Room code ${PREVIEW_ROOM.split('').join(' ')}`}>

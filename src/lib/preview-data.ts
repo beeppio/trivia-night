@@ -1,5 +1,5 @@
 export const PREVIEW_ROOM = 'Q7K2M';
-export const PLAYER_URL = 'placeholder.com/play';
+export const PLAYER_URL = new URL('/play', window.location.origin).href;
 
 // Public sample content only. Production questions will be delivered by authorized backend functions.
 export const previewQuestions = [

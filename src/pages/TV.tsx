@@ -1,4 +1,4 @@
-import { Crown, Trophy } from 'lucide-react';
+import { Crown, Trophy, Volume2 } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { useEffect, useState } from 'react';
 import { formatSeconds, usePlayerSession, useRemainingSeconds, type PublicSession } from '@/hooks/use-local-session';
@@ -8,6 +8,7 @@ import { BackgroundPattern } from '@/components/BackgroundPattern';
 import { QuestionMedia } from '@/components/QuestionMedia';
 import { useTVSound } from '@/hooks/use-tv-sound';
 import { Button } from '@/components/ui/button';
+import { useHomepageMusic } from '@/hooks/use-homepage-music';
 
 export default function TV() {
   const broadcastSession = usePlayerSession();
@@ -52,10 +53,13 @@ export default function TV() {
     const interval = window.setInterval(() => setDotCount(count => (count + 1) % 4), 500);
     return () => window.clearInterval(interval);
   }, [waiting]);
-  const joinUrl = new URL(`/player/${PREVIEW_ROOM}`, window.location.origin).href;
+  const joinUrl = new URL('/play', window.location.origin).href;
   const remaining = useRemainingSeconds(session?.deadline ?? null, session?.duration ?? 30);
   const tvSound = useTVSound(session, remaining);
-  const musicActive = Boolean(session?.roundMusic && !session.ended);
+  const homepageMusic = useHomepageMusic();
+  const backgroundMusic = waiting ? homepageMusic.enabled ? homepageMusic.media : undefined : session?.roundMusic;
+  const backgroundStartedAt = waiting ? homepageMusic.startedAt : session?.roundMusicStartedAt ?? null;
+  const musicActive = Boolean(backgroundMusic && !session?.ended);
   const foregroundPlaying = Object.values(mediaPlaying).some(Boolean);
   const effectiveMusicVolume = session?.musicMuted || foregroundPlaying ? 0 : (session?.musicVolume ?? 0.4) * (session?.musicTalking ? 0.2 : 1);
   const showingQuestion = Boolean(session && !session.waiting && !session.preparing && !session.ended);
@@ -65,8 +69,8 @@ export default function TV() {
   const winners = session?.ended && session.rankings.length ? session.rankings.filter(team => team.score === session.rankings[0].score) : [];
 
   return <main className="relative isolate flex min-h-svh flex-col overflow-hidden bg-background px-5 py-6 text-foreground sm:px-10 lg:px-16 lg:py-10">
-    {!tvSound.enabled && <Button className="relative z-10 mx-auto mb-4 rounded-2xl" onClick={() => { void tvSound.enable(); }}>Enable TV sound</Button>}
-    {musicActive && session?.roundMusic && <div className={session.roundMusic.youtubeId ? 'relative mx-auto mb-5 w-full max-w-md' : 'absolute left-0 top-0 -z-10 h-px w-px overflow-hidden'} aria-hidden={!session.roundMusic.youtubeId}><QuestionMedia key={`${session.roundMusic.id}-${session.roundMusicStartedAt}`} media={[session.roundMusic]} imagesRevealed videoStartedAt={session.roundMusicStartedAt ?? null} audience soundEnabled={tvSound.enabled} volume={effectiveMusicVolume} loop /></div>}
+    {!tvSound.enabled && <Button variant="ghost" size="icon" aria-label="Enable TV sound" title="Enable TV sound" className="absolute left-3 top-3 z-20 h-8 w-8 rounded-full bg-primary/15 text-primary hover:bg-primary/25" onClick={() => { void tvSound.enable(); }}><Volume2 className="h-4 w-4" /></Button>}
+    {musicActive && backgroundMusic && <div className={backgroundMusic.youtubeId ? 'relative mx-auto mb-5 w-full max-w-md' : 'absolute left-0 top-0 -z-10 h-px w-px overflow-hidden'} aria-hidden={!backgroundMusic.youtubeId}><QuestionMedia key={`${backgroundMusic.id}-${backgroundStartedAt}`} media={[backgroundMusic]} imagesRevealed videoStartedAt={backgroundStartedAt} audience soundEnabled={tvSound.enabled} volume={waiting ? 0.4 : effectiveMusicVolume} loop /></div>}
     {waiting && <BackgroundPattern />}
     {!waiting && <header className="relative flex min-h-12 flex-wrap items-center justify-between gap-x-8 gap-y-3 border-b border-primary/25 pb-5 text-lg font-semibold text-primary sm:text-2xl lg:text-3xl">
       <span className="min-w-0 break-words">{session?.ended ? 'Final standings' : waiting ? 'Join the game' : session?.roundName}</span>

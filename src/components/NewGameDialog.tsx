@@ -40,7 +40,7 @@ export function NewGameDialog({ onClose, onSave, onDelete, initialGame }: { onCl
   };
   const submit = async (event: FormEvent) => {
     event.preventDefault();
-    const allMedia = [...(game.homeMusic ? [game.homeMusic] : []), ...game.rounds.flatMap(round => [...(round.music ? [round.music] : []), ...round.questions.flatMap(question => [...question.questionMedia, ...question.answerMedia])])];
+    const allMedia = game.rounds.flatMap(round => [...(round.music ? [round.music] : []), ...round.questions.flatMap(question => [...question.questionMedia, ...question.answerMedia])]);
     const bytes = allMedia.reduce((total, media) => total + (media.file?.size || 0), 0);
     if (allMedia.some(media => media.trimEnd !== undefined && media.trimEnd <= (media.trimStart ?? 0))) { toast.error('Every media end time must be after its start time.'); return; }
     if (game.rounds.some(round => round.questions.some(question => question.type === 'order' && ((question.orderItems?.length ?? 0) < 2 || question.orderItems!.some(item => !item.trim()) || new Set(question.orderItems!.map(item => item.trim())).size !== question.orderItems!.length)))) { toast.error('Ordering questions need at least two distinct, non-empty items.'); return; }
@@ -59,7 +59,6 @@ export function NewGameDialog({ onClose, onSave, onDelete, initialGame }: { onCl
             <Input id="game-name" aria-label="Game name" value={game.title} onChange={event => setGame(previous => ({ ...previous, title: event.target.value }))} placeholder="Game name" maxLength={80} className="h-12 rounded-xl bg-transparent placeholder:text-muted-foreground" />
             <CountSelect id="round-count" label="Number of rounds" count={game.rounds.length} maximum={10} onChange={resizeRounds} />
           </div>
-          <section className="space-y-3 rounded-2xl border border-primary/30 bg-secondary/15 p-5"><h2 className="font-semibold text-primary">Home-screen music</h2><p className="text-sm text-muted-foreground">Plays on the TV while players join after you choose this game. Stops when the round introduction starts.</p><MediaUpload id={`home-music-${game.id}`} label="Add home-screen music" musicOnly media={game.homeMusic ? [game.homeMusic] : []} onChange={media => setGame(previous => ({ ...previous, homeMusic: media[0] }))} /></section>
           {game.rounds.map((round, roundIndex) => <section key={round.id} className="space-y-6 rounded-2xl border border-border bg-secondary/15 p-4 sm:p-6">
             <div className="grid items-start gap-5 sm:grid-cols-[2fr_1fr]">
               <div className="space-y-3">

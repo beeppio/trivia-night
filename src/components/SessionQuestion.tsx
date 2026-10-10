@@ -16,7 +16,7 @@ export function SessionQuestion({ session, player = false, teamId, onSubmit }: {
   const gradeColor = result?.grade === 1 ? 'text-green-400 border-green-400/40 bg-green-400/10' : result?.grade === 0.5 ? 'text-orange-400 border-orange-400/40 bg-orange-400/10' : 'text-red-400 border-red-400/40 bg-red-400/10';
   const submit = (event: FormEvent) => {
     event.preventDefault();
-    if (locked || submitted || !submissionText || !session.deadline || Date.now() >= session.deadline) return;
+    if (locked || submitted || !submissionText || (session.deadline !== null && Date.now() >= session.deadline)) return;
     onSubmit?.(submissionText);
     setAnswer(submissionText); setSubmitted(true);
   };
@@ -29,7 +29,7 @@ export function SessionQuestion({ session, player = false, teamId, onSubmit }: {
     {player && session.answer === undefined && <form onSubmit={submit} className="space-y-4">
       {session.questionType === 'order' ? <OrderingAnswer items={session.orderItems || []} order={order} onChange={setOrder} disabled={locked || submitted} /> : <Textarea aria-label="Your answer" placeholder="Type your answer" maxLength={4000} value={!submitted && session.deadline !== null && remaining === 0 ? 'No Answer' : answer} disabled={locked || submitted} onChange={event => setAnswer(event.target.value)} className="min-h-28 rounded-xl bg-transparent" />}
       <Button type="submit" disabled={locked || submitted || !submissionText} className="h-12 w-full rounded-xl text-white">{submitted ? <><Check className="mr-2 h-4 w-4" /> Answer locked in</> : locked ? <><LockKeyhole className="mr-2 h-4 w-4" /> Answers locked</> : 'Submit answer'}</Button>
-      <p role="status" className="text-center text-sm text-muted-foreground">{remaining === 0 || (locked && session.deadline !== null) ? 'Time is up. Wait for the next question.' : submitted ? 'Submitted to the host for review.' : session.deadline === null ? 'Wait for the host to start the question.' : ''}</p>
+      <p role="status" className="text-center text-sm text-muted-foreground">{remaining === 0 || (locked && session.deadline !== null) ? 'Time is up. Wait for the next question.' : submitted ? 'Submitted to the host for review.' : session.deadline === null ? 'You can answer now. The host has not started the buzzer yet.' : ''}</p>
     </form>}
     {session.answer !== undefined && <section className="space-y-4 border-t-2 border-dotted border-primary/60 pt-6">
       {player && <p className="whitespace-pre-wrap break-words text-lg"><span className="font-semibold text-primary">Your Answer: </span><span className={result?.grade === 1 ? 'text-green-400' : result?.grade === 0.5 ? 'text-orange-400' : result?.grade === 0 ? 'text-red-400' : ''}>{result?.answer || (submitted ? answer : 'No Answer')}</span></p>}
