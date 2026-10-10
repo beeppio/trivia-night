@@ -60,10 +60,13 @@ export default function TV() {
   const backgroundMusic = waiting ? homepageMusic.enabled ? homepageMusic.media : undefined : session?.roundMusic;
   const backgroundStartedAt = waiting ? homepageMusic.startedAt : session?.roundMusicStartedAt ?? null;
   const musicActive = Boolean(backgroundMusic && !session?.ended);
-  const foregroundPlaying = Object.values(mediaPlaying).some(Boolean);
-  const effectiveMusicVolume = session?.musicMuted || foregroundPlaying ? 0 : (session?.musicVolume ?? 0.4) * (session?.musicTalking ? 0.2 : 1);
   const showingQuestion = Boolean(session && !session.waiting && !session.preparing && !session.ended);
   const revealed = session?.answer !== undefined;
+  const foregroundMedia = revealed ? session?.answerMedia : session?.media;
+  const foregroundStartedAt = revealed ? session?.answerMediaStartedAt : session?.videoStartedAt;
+  const foregroundPausedAt = revealed ? session?.answerMediaPausedAt : session?.mediaPausedAt;
+  const foregroundPlaying = showingQuestion && foregroundStartedAt != null && foregroundPausedAt == null && Boolean(foregroundMedia?.some(media => mediaPlaying[media.id]));
+  const effectiveMusicVolume = session?.musicMuted || foregroundPlaying ? 0 : (session?.musicVolume ?? 0.4) * (session?.musicTalking ? 0.2 : 1);
   const expired = showingQuestion && session?.deadline !== null && remaining === 0;
   const progress = session?.deadline ? Math.max(0, Math.min(100, (session.deadline - Date.now()) / (session.duration * 1000) * 100)) : 100;
   const winners = session?.ended && session.rankings.length ? session.rankings.filter(team => team.score === session.rankings[0].score) : [];
