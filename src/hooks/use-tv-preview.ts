@@ -2,7 +2,7 @@ import { useEffect, useRef } from 'react';
 import { toast } from 'sonner';
 import type { PublicSession } from '@/hooks/use-local-session';
 
-export function useTVPreview(session: PublicSession | null) {
+export function useTVPreview(session: PublicSession | null, roomCode?: string) {
   const preview = useRef<Window | null>(null);
   const channel = useRef<BroadcastChannel | null>(null);
   const latest = useRef(session);
@@ -48,7 +48,7 @@ export function useTVPreview(session: PublicSession | null) {
 
   return () => {
     if (preview.current && !preview.current.closed) { preview.current.focus(); publish(); return; }
-    preview.current = window.open(new URL('/tv', window.location.href).href, '285-live-tv-preview');
+    preview.current = window.open(new URL(roomCode ? `/tv?room=${encodeURIComponent(roomCode)}` : '/tv', window.location.href).href, '285-live-tv-preview');
     if (!preview.current) toast.error('Allow pop-ups for this site to open the live TV preview.');
   };
 }

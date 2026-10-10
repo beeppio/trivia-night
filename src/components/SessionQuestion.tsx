@@ -4,21 +4,29 @@ import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { OrderingAnswer } from '@/components/OrderingAnswer';
 import { formatSeconds, useRemainingSeconds, type PublicSession } from '@/hooks/use-local-session';
+import { toast } from 'sonner';
+import { apiError } from '@/lib/online-game';
 
-export function SessionQuestion({ session, player = false, teamId, onSubmit }: { session: PublicSession; player?: boolean; teamId?: string; onSubmit?: (answer: string) => void }) {
+export function SessionQuestion({ session, player = false, teamId, onSubmit }: { session: PublicSession; player?: boolean; teamId?: string; onSubmit?: (answer: string) => void | Promise<void> }) {
   const [answer, setAnswer] = useState('');
-  const [submitted, setSubmitted] = useState(false);
+  const [submittedLocally, setSubmitted] = useState(false);
   const [order, setOrder] = useState<number[]>(() => (session.orderItems || []).map((_, index) => index));
+  const [submitting, setSubmitting] = useState(false);
+  const submitted = submittedLocally || Boolean(teamId && session.submittedTeamIds?.includes(teamId));
   const submissionText = session.questionType === 'order' ? order.map((id, index) => `${index + 1}. ${session.orderItems?.[id]}`).join('\n') : answer.trim();
   const remaining = useRemainingSeconds(session.deadline, session.duration);
   const locked = !session.open || (session.deadline !== null && remaining === 0);
   const result = session.results?.find(item => item.teamId === teamId);
   const gradeColor = result?.grade === 1 ? 'text-green-400 border-green-400/40 bg-green-400/10' : result?.grade === 0.5 ? 'text-orange-400 border-orange-400/40 bg-orange-400/10' : 'text-red-400 border-red-400/40 bg-red-400/10';
-  const submit = (event: FormEvent) => {
+  const submit = async (event: FormEvent) => {
     event.preventDefault();
-    if (locked || submitted || !submissionText || (session.deadline !== null && Date.now() >= session.deadline)) return;
-    onSubmit?.(submissionText);
-    setAnswer(submissionText); setSubmitted(true);
+    if (locked || submitted || submitting || !submissionText || (session.deadline !== null && Date.now() >= session.deadline)) return;
+    setSubmitting(true);
+    try {
+      await onSubmit?.(submissionText);
+      setAnswer(submissionText); setSubmitted(true);
+    } catch (error) { toast.error(apiError(error)); }
+    finally { setSubmitting(false); }
   };
   if (session.ended) return <section className="py-12 text-center"><h1 className="text-3xl font-bold text-primary">Game complete</h1></section>;
   if (session.preparing) return <section className="flex min-h-80 flex-col items-center justify-center gap-5 py-10 text-center"><p className="eyebrow text-primary">Round {session.roundIndex + 1}</p><h1 className="break-words text-4xl font-bold text-primary">{session.roundName}</h1>{session.roundDescription?.trim() && <p className="whitespace-pre-wrap break-words text-lg">{session.roundDescription}</p>}<p role="status" className="text-sm text-muted-foreground">Waiting for the host to start the round.</p></section>;
@@ -28,7 +36,7 @@ export function SessionQuestion({ session, player = false, teamId, onSubmit }: {
     <h1 className="whitespace-pre-wrap break-words text-2xl font-bold text-white sm:text-3xl">{session.text}</h1>
     {player && session.answer === undefined && <form onSubmit={submit} className="space-y-4">
       {session.questionType === 'order' ? <OrderingAnswer items={session.orderItems || []} order={order} onChange={setOrder} disabled={locked || submitted} /> : <Textarea aria-label="Your answer" placeholder="Type your answer" maxLength={4000} value={!submitted && session.deadline !== null && remaining === 0 ? 'No Answer' : answer} disabled={locked || submitted} onChange={event => setAnswer(event.target.value)} className="min-h-28 rounded-xl bg-transparent" />}
-      <Button type="submit" disabled={locked || submitted || !submissionText} className="h-12 w-full rounded-xl text-white">{submitted ? <><Check className="mr-2 h-4 w-4" /> Answer locked in</> : locked ? <><LockKeyhole className="mr-2 h-4 w-4" /> Answers locked</> : 'Submit answer'}</Button>
+      <Button type="submit" disabled={locked || submitted || submitting || !submissionText} className="h-12 w-full rounded-xl text-white">{submitting ? 'Submitting…' : submitted ? <><Check className="mr-2 h-4 w-4" /> Answer locked in</> : locked ? <><LockKeyhole className="mr-2 h-4 w-4" /> Answers locked</> : 'Submit answer'}</Button>
       <p role="status" className="text-center text-sm text-muted-foreground">{remaining === 0 || (locked && session.deadline !== null) ? 'Time is up. Wait for the next question.' : submitted ? 'Submitted to the host for review.' : session.deadline === null ? 'You can answer now. The host has not started the buzzer yet.' : ''}</p>
     </form>}
     {session.answer !== undefined && <section className="space-y-4 border-t-2 border-dotted border-primary/60 pt-6">

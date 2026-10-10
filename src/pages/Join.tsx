@@ -33,7 +33,7 @@ export default function Join() {
           <Button type="submit" className="party-button w-full">Enter room <ArrowRight className="ml-2 h-4 w-4" /></Button>
         </form>
       </section>
-      <p className="mt-5 text-center text-xs leading-5 text-muted-foreground">Online room joining is enabled. Online gameplay synchronization is the next phase.</p>
+      <p className="mt-5 text-center text-xs leading-5 text-muted-foreground">Join your host's online room to play from this device.</p>
     </main>
   </PartyLayout>;
 }

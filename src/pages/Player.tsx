@@ -6,6 +6,8 @@ import { Button } from '@/components/ui/button';
 import { Brand } from '@/components/PartyLayout';
 import { PlayerGameView } from '@/components/PlayerGameView';
 import { useJoinedRoom } from '@/hooks/use-online-room';
+import { useOnlineGame } from '@/hooks/use-online-game';
+import { supabase } from '@/integrations/supabase/client';
 import type { PlayerProfile, PublicSession } from '@/hooks/use-local-session';
 
 export default function Player() {
@@ -18,12 +20,13 @@ export default function Player() {
   const mine = online.players.find(player => player.id === online.userId);
   useEffect(() => { setDraft(mine); }, [mine?.id]);
   const profile = draft || mine;
-  const session: PublicSession | null = online.room ? {
+  const game = useOnlineGame(online.room);
+  const session: PublicSession | null = game.session || (online.room ? {
     runId: '', title: 'Online lobby', waiting: true, roundName: '', roundIndex: 0, questionIndex: 0,
     text: '', media: [], imagesRevealed: false, videoStartedAt: null, answerMediaStartedAt: null,
     deadline: null, duration: 30, open: false, ended: false,
     rankings: online.players.map(player => ({ ...player, score: 0 })),
-  } : null;
+  } : null);
   const update = (next: PlayerProfile) => {
     setDraft(next);
     saveQueue.current = saveQueue.current.then(() => online.updateProfile(next)).catch(error => {
@@ -32,6 +35,9 @@ export default function Player() {
   };
   return <div className="mx-auto min-h-screen max-w-lg px-5 pb-8">
     <header className="flex items-center justify-between border-b border-border py-5"><Brand /><Button asChild variant="ghost" size="icon" className="rounded-xl"><Link to="/play" aria-label="Return to join screen"><LogOut className="h-4 w-4" /></Link></Button></header>
-    {online.error ? <section className="space-y-4 py-8"><p role="alert" className="break-words text-destructive">{online.error}</p><Button asChild className="rounded-xl"><Link to="/play">Try another room code</Link></Button></section> : !online.room || !profile ? <p role="status" className="py-8 text-center text-primary">Joining room…</p> : <><p role="status" className="py-4 text-center text-xs leading-5 text-muted-foreground">Connected to room {online.room.code}. Your host can see your team. Online questions and answers are not enabled yet.</p><PlayerGameView key={online.room.id} profile={profile} session={session} onProfileChange={update} onSubmit={() => { toast.info('Online gameplay is not enabled yet.'); }} /></>}
+    {(online.error || game.error) ? <section className="space-y-4 py-8"><p role="alert" className="break-words text-destructive">{online.error || game.error}</p><Button asChild className="rounded-xl"><Link to="/play">Try another room code</Link></Button></section> : !online.room || !profile ? <p role="status" className="py-8 text-center text-primary">Joining room…</p> : <><p role="status" className="py-4 text-center text-xs leading-5 text-muted-foreground">Connected to room {online.room.code}</p><PlayerGameView key={online.room.id} profile={profile} session={session} onProfileChange={update} onSubmit={async answer => {
+      const result = await supabase!.rpc('trivia_submit_answer', { target: online.room!.id, question_run: session!.runId, response: answer });
+      if (result.error) throw result.error;
+    }} /></>}
   </div>;
 }

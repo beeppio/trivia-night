@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowLeft, ArrowRight, Copy, Crown, Eye, Monitor, Pencil, Play, Plus, RotateCcw, Speech, Volume2, VolumeX } from 'lucide-react';
 import { toast } from 'sonner';
@@ -18,6 +18,10 @@ import { loadGames, readLegacyDrafts, saveGame, deleteGame, type LocalGame } fro
 import { useHostSession, useRemainingSeconds, type PlayerSubmission, type PublicSession } from '@/hooks/use-local-session';
 import { useTVPreview } from '@/hooks/use-tv-preview';
 import { useHostRoom } from '@/hooks/use-online-room';
+import { useHostSubmissions, usePublishGame } from '@/hooks/use-online-game';
+import { useHomepageMusic } from '@/hooks/use-homepage-music';
+import { supabase } from '@/integrations/supabase/client';
+import { apiError } from '@/lib/online-game';
 import { PlayerLobby } from '@/components/PlayerLobby';
 
 type Stage = 'lobby' | 'waiting' | 'preparing' | 'question' | 'closed' | 'reveal' | 'ended';
@@ -43,7 +47,18 @@ export default function Host() {
   const online = useHostRoom();
   const [localTeams, setTeams] = useState<Team[]>([]);
   const teams = useMemo(() => [...localTeams.filter(team => !online.players.some(player => player.id === team.id)), ...online.players], [localTeams, online.players]);
-  const [answers, setAnswers] = useState<Record<string, TeamAnswer[]>>({});
+  const [localAnswers, setAnswers] = useState<Record<string, TeamAnswer[]>>({});
+  const remote = useHostSubmissions(online.room);
+  const answers = useMemo(() => {
+    const combined = { ...localAnswers };
+    for (const [id, submissions] of Object.entries(remote.answers)) {
+      const existing = combined[id] || [];
+      combined[id] = [...existing.filter(answer => !submissions.some(item => item.teamId === answer.teamId)), ...submissions.map(item => ({ ...item, grade: existing.find(answer => answer.teamId === item.teamId)?.grade }))];
+    }
+    return combined;
+  }, [localAnswers, remote.answers]);
+  const homepage = useHomepageMusic();
+  const closing = useRef(false);
   const [points, setPoints] = useState<Record<string, number>>({});
   const [publishedResults, setPublishedResults] = useState<Record<string, TeamAnswer[]>>({});
   const [answerMediaStartedAt, setAnswerMediaStartedAt] = useState<number | null>(null);
@@ -56,7 +71,7 @@ export default function Host() {
   const [musicStartedAt, setMusicStartedAt] = useState<number | null>(null);
   const remaining = useRemainingSeconds(deadline, deadline ? questionDuration : duration);
 
-  useEffect(() => { if (deadline && remaining === 0 && stage === 'question') closeQuestion(); }, [deadline, remaining, stage]);
+  useEffect(() => { if (deadline && remaining === 0 && stage === 'question') void closeQuestion(); }, [deadline, remaining, stage]);
 
   useEffect(() => {
     let cancelled = false;
@@ -123,9 +138,10 @@ export default function Host() {
     text: '', media: [], imagesRevealed: false, videoStartedAt: null, answerMediaStartedAt: null,
     deadline: null, duration, open: false, ended: false,
     rankings: scoredTeams.map(team => ({ ...team, score: 0 })),
-  }), roundMusic: publicSession && !publicSession.waiting && !publicSession.ended ? activeGame?.rounds[publicSession.roundIndex].music : undefined, roundMusicStartedAt: musicStartedAt, musicMuted, musicTalking, musicVolume }), [publicSession, duration, scoredTeams, activeGame, musicStartedAt, musicMuted, musicTalking, musicVolume]);
+  }), roundMusic: publicSession && !publicSession.waiting && !publicSession.ended ? activeGame?.rounds[publicSession.roundIndex].music : homepage.enabled ? homepage.media : undefined, roundMusicStartedAt: publicSession && !publicSession.waiting ? musicStartedAt : homepage.startedAt, musicMuted, musicTalking, musicVolume }), [publicSession, duration, scoredTeams, activeGame, musicStartedAt, musicMuted, musicTalking, musicVolume, homepage.enabled, homepage.media, homepage.startedAt]);
 
-  const openTVPreview = useTVPreview(tvSession);
+  const publisher = usePublishGame(online.room, tvSession);
+  const openTVPreview = useTVPreview(tvSession, online.room?.code);
 
   function receiveSubmission(submission: PlayerSubmission) {
     if (submission.runId !== runId || stage !== 'question' || (deadline !== null && Date.now() >= deadline)) return;
@@ -141,26 +157,38 @@ export default function Host() {
     if (existing?.name === profile.name && existing?.avatarUrl === profile.avatarUrl && existing?.ready === profile.ready && JSON.stringify(existing?.frames) === JSON.stringify(profile.frames)) return previous;
     return existing ? previous.map(team => team.id === profile.id ? profile : team) : [...previous, profile];
   });
-  useHostSession(publicSession, receiveSubmission, registerTeam);
+  useHostSession(publicSession, online.room ? undefined : receiveSubmission, online.room ? undefined : registerTeam);
   const gradeAnswer = (teamId: string, grade: number) => {
-    if (question?.type === 'order') return;
-    setAnswers(previous => ({ ...previous, [runId]: (previous[runId] || []).map(answer => answer.teamId === teamId ? { ...answer, grade } : answer) }));
+    if (question?.type === 'order' || closing.current) return;
+    setAnswers(previous => ({ ...previous, [runId]: (answers[runId] || []).map(answer => answer.teamId === teamId ? { ...answer, grade } : answer) }));
     if (stage === 'reveal') setPublishedResults(previous => ({ ...previous, [runId]: (previous[runId] || []).map(answer => answer.teamId === teamId ? { ...answer, grade } : answer) }));
   };
-  function completeAnswers() {
-    const submitted = answers[runId] || [];
+  function completeAnswers(submitted = answers[runId] || []) {
     const completed: TeamAnswer[] = [...submitted, ...teams.filter(team => !submitted.some(answer => answer.teamId === team.id)).map(team => ({ teamId: team.id, answer: 'No Answer', grade: 0, submitted: false }))];
     if (question?.type !== 'order') return completed;
     const correct = (question.orderItems || []).map((item, index) => `${index + 1}. ${item}`).join('\n');
     return completed.map(answer => ({ ...answer, grade: answer.submitted !== false && answer.answer === correct ? 1 : 0 }));
   }
-  function closeQuestion() {
-    const completed = completeAnswers();
-    setAnswers(previous => ({ ...previous, [runId]: completed }));
-    if (question?.type === 'order') setPublishedResults(previous => ({ ...previous, [runId]: completed.map(answer => ({ ...answer })) }));
-    setStage('closed');
+  async function closeQuestion(reveal = false) {
+    if (closing.current) return;
+    closing.current = true;
+    try {
+      let submitted = answers[runId] || [];
+      if (online.room && supabase) {
+        await publisher.flush();
+        const result = await supabase.rpc('trivia_close_answers', { target: online.room.id, question_run: runId });
+        if (result.error) throw result.error;
+        const accepted = result.data as { user_id: string; answer: string }[];
+        submitted = [...submitted.filter(answer => !accepted.some(item => item.user_id === answer.teamId)), ...accepted.map(item => ({ teamId: item.user_id, answer: item.answer, grade: submitted.find(answer => answer.teamId === item.user_id)?.grade }))];
+      }
+      const completed = completeAnswers(submitted);
+      setAnswers(previous => ({ ...previous, [runId]: completed }));
+      if (reveal || question?.type === 'order') setPublishedResults(previous => ({ ...previous, [runId]: completed.map(answer => ({ ...answer })) }));
+      setStage(reveal ? 'reveal' : 'closed');
+    } catch (error) { toast.error(apiError(error)); }
+    finally { closing.current = false; }
   }
-  const revealAnswer = () => { const completed = completeAnswers(); setAnswers(previous => ({ ...previous, [runId]: completed })); setPublishedResults(previous => ({ ...previous, [runId]: completed.map(answer => ({ ...answer })) })); setStage('reveal'); };
+  const revealAnswer = () => { void closeQuestion(true); };
 
   const addPlayer = () => setTeams(previous => [...previous, { id: crypto.randomUUID(), name: `Player ${previous.filter(team => /^Player \d+$/.test(team.name)).length + 1}`, ready: false }]);
 
@@ -281,7 +309,7 @@ export default function Host() {
           </div>}
         </section>
         <aside className="space-y-5">
-          <section className="panel p-5"><p className="eyebrow">ROOM CODE</p><div className="mt-3 flex items-center justify-between"><span className="display-font text-4xl font-bold tracking-[.15em] text-primary">{online.room?.code || '—'}</span><Button variant="ghost" size="icon" disabled={!online.room} aria-label="Copy room code" className="rounded-xl" onClick={copyCode}><Copy className="h-4 w-4" /></Button></div>{!online.room && <Button disabled={online.busy} className="mt-4 w-full rounded-xl" onClick={() => { void online.create(); }}>{online.busy ? 'Creating room…' : 'Create online room'}</Button>}{online.error && <p role="alert" className="mt-3 break-words text-sm text-destructive">{online.error}</p>}<p className="mt-3 text-xs leading-5 text-muted-foreground">Online lobby enabled. Questions, answers and TV gameplay are still local-only in this phase.</p></section>
+          <section className="panel p-5"><p className="eyebrow">ROOM CODE</p><div className="mt-3 flex items-center justify-between"><span className="display-font text-4xl font-bold tracking-[.15em] text-primary">{online.room?.code || '—'}</span><Button variant="ghost" size="icon" disabled={!online.room} aria-label="Copy room code" className="rounded-xl" onClick={copyCode}><Copy className="h-4 w-4" /></Button></div>{!online.room && <Button disabled={online.busy} className="mt-4 w-full rounded-xl" onClick={() => { void online.create(); }}>{online.busy ? 'Creating room…' : 'Create online room'}</Button>}{(online.error || publisher.error || remote.error) && <p role="alert" className="mt-3 break-words text-sm text-destructive">{online.error || publisher.error || remote.error}</p>}<p className="mt-3 text-xs leading-5 text-muted-foreground">Room-scoped online gameplay. Open TV from this dashboard to display this room.</p></section>
           <HomepageMusic />
           <HostPlayers players={scoredTeams} showReadiness={stage === 'lobby' || stage === 'waiting'} showAnswers={stage === 'question' || stage === 'closed'} submittedTeamIds={publicSession?.submittedTeamIds} />
           <Buzzer duration={duration} remaining={remaining} running={deadline !== null} countdownDuration={questionDuration} deadline={deadline} onChange={changeDuration} onStart={startBuzzer} canStart={stage === 'question' && deadline === null} />

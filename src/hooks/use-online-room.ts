@@ -62,7 +62,7 @@ export function useHostRoom() {
   };
   return { room, busy, create, players: roster.players, error: error || roster.error };
 }
-export function useJoinedRoom(code: string) {
+export function useJoinedRoom(code: string, viewer = false) {
   const [room, setRoom] = useState<OnlineRoom | null>(null);
   const [userId, setUserId] = useState('');
   const [error, setError] = useState('');
@@ -73,14 +73,14 @@ export function useJoinedRoom(code: string) {
     const join = async () => {
       try {
         const id = await ensureIdentity();
-        const result = await supabase!.rpc('trivia_join_room', { room_code: code });
+        const result = await supabase!.rpc(viewer ? 'trivia_watch_room' : 'trivia_join_room', { room_code: code });
         if (result.error) throw result.error;
         if (!cancelled) { setUserId(id); setRoom(result.data); }
       } catch (error) { if (!cancelled) setError(message(error)); }
     };
-    if (/^[A-Z0-9]{5}$/.test(code)) void join(); else setError('Enter a valid five-character room code.');
+    if (code && /^[A-Z0-9]{5}$/.test(code)) void join(); else if (code) setError('Enter a valid five-character room code.');
     return () => { cancelled = true; };
-  }, [code]);
+  }, [code, viewer]);
   const updateProfile = useCallback(async (profile: PlayerProfile) => {
     if (!room || !userId || !supabase) return;
     const result = await supabase.from('trivia_players').update({ name: profile.name, ready: profile.ready ?? false, avatar_url: profile.avatarUrl || null, frames: profile.frames || null }).eq('room_id', room.id).eq('user_id', userId);

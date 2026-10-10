@@ -9,12 +9,21 @@ import { QuestionMedia } from '@/components/QuestionMedia';
 import { useTVSound } from '@/hooks/use-tv-sound';
 import { Button } from '@/components/ui/button';
 import { useHomepageMusic } from '@/hooks/use-homepage-music';
+import { useSearchParams } from 'react-router-dom';
+import { useJoinedRoom } from '@/hooks/use-online-room';
+import { useOnlineGame } from '@/hooks/use-online-game';
+import { Input } from '@/components/ui/input';
 
 export default function TV() {
   const broadcastSession = usePlayerSession();
   const [directSession, setDirectSession] = useState<{ session: PublicSession | null } | null>(null);
   const [mediaPlaying, setMediaPlaying] = useState<Record<string, boolean>>({});
   const reportPlayback = (id: string, playing: boolean) => setMediaPlaying(previous => previous[id] === playing ? previous : { ...previous, [id]: playing });
+  const [params, setParams] = useSearchParams();
+  const code = (params.get('room') || '').toUpperCase();
+  const [roomInput, setRoomInput] = useState('');
+  const online = useJoinedRoom(code, true);
+  const game = useOnlineGame(online.room);
   useEffect(() => {
     const host = window.opener;
     const connection = new BroadcastChannel('285-trivia-tv-session');
@@ -44,7 +53,8 @@ export default function TV() {
     const interval = window.setInterval(request, 1000);
     return () => { window.removeEventListener('message', receive); window.clearInterval(interval); connection.close(); };
   }, []);
-  const session = directSession ? directSession.session : broadcastSession;
+  const session = code ? game.session : directSession ? directSession.session : broadcastSession;
+  const roomCode = online.room?.code || code;
   const waiting = !session || Boolean(session.waiting);
   const [dotCount, setDotCount] = useState(1);
   useEffect(() => {
@@ -57,8 +67,8 @@ export default function TV() {
   const remaining = useRemainingSeconds(session?.deadline ?? null, session?.duration ?? 30);
   const tvSound = useTVSound(session, remaining);
   const homepageMusic = useHomepageMusic();
-  const backgroundMusic = waiting ? homepageMusic.enabled ? homepageMusic.media : undefined : session?.roundMusic;
-  const backgroundStartedAt = waiting ? homepageMusic.startedAt : session?.roundMusicStartedAt ?? null;
+  const backgroundMusic = code ? session?.roundMusic : waiting ? homepageMusic.enabled ? homepageMusic.media : undefined : session?.roundMusic;
+  const backgroundStartedAt = code ? session?.roundMusicStartedAt ?? null : waiting ? homepageMusic.startedAt : session?.roundMusicStartedAt ?? null;
   const musicActive = Boolean(backgroundMusic && !session?.ended);
   const showingQuestion = Boolean(session && !session.waiting && !session.preparing && !session.ended);
   const revealed = session?.answer !== undefined;
@@ -105,7 +115,8 @@ export default function TV() {
         <h2 className="mt-8 text-4xl font-bold tracking-tight sm:text-6xl">Join the game</h2>
         <p className="mt-6 text-base leading-7 text-muted-foreground sm:text-lg">On your phone, open this link to join the room</p>
         <a href={joinUrl} className="display-font mt-2 block break-all text-xl font-semibold text-primary underline-offset-4 hover:underline sm:text-3xl">{joinUrl}</a>
-        <div className="mx-auto mt-8 w-fit rounded-2xl border border-primary/30 bg-card px-7 py-6 sm:px-12 sm:py-8"><p className="eyebrow">Room code</p><p className="display-font mt-3 pl-[.15em] text-5xl font-bold tracking-[.15em] text-primary sm:text-7xl" aria-label={`Room code ${PREVIEW_ROOM.split('').join(' ')}`}>{PREVIEW_ROOM}</p></div>
+        {(online.error || game.error) && <p role="alert" className="mx-auto mb-4 max-w-lg break-words rounded-xl border border-destructive/40 bg-card p-3 text-sm text-destructive">{online.error || game.error}</p>}
+        <div className="mx-auto mt-8 w-fit rounded-2xl border border-primary/30 bg-card px-7 py-6 sm:px-12 sm:py-8"><p className="eyebrow">Room code</p>{roomCode ? <p className="display-font mt-3 pl-[.15em] text-5xl font-bold tracking-[.15em] text-primary sm:text-7xl" aria-label={`Room code ${roomCode.split('').join(' ')}`}>{roomCode}</p> : <form className="mt-4 flex flex-wrap justify-center gap-3" onSubmit={event => { event.preventDefault(); setParams({ room: roomInput }); }}><Input aria-label="TV room code" value={roomInput} onChange={event => setRoomInput(event.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 5))} required pattern="[A-Z0-9]{5}" maxLength={5} placeholder="Room code" className="h-12 w-44 rounded-xl text-center text-xl tracking-widest" /><Button className="h-12 rounded-xl">Connect TV</Button></form>}</div>
         <p role="status" aria-label="Waiting for host to start game" className="text-[clamp(1.25rem,2.5vw,2.5rem)] font-semibold">Waiting for host to start game<span aria-hidden="true" className="inline-block w-[1.5em] text-left">{'.'.repeat(dotCount)}</span></p>
       </div>}
     </section>

@@ -1,32 +1,46 @@
-# Online lobby setup (phase 1)
+# Supabase online gameplay
 
-The connected project has `trivia_rooms`, `trivia_players`, room creation/join RPCs, Row Level Security, and `trivia_players` in the Supabase Realtime publication. The schema was applied directly through Dyad; no SQL needs to be pasted for this phase.
+## Configuration
 
-## Required configuration
+- Keep anonymous sign-ins enabled in Supabase Authentication.
+- The app reads only `VITE_SUPABASE_URL` and `VITE_SUPABASE_PUBLISHABLE_KEY` from Vite environment variables. Local values go in the root Git-ignored `.env.local`; Cloudflare values go in Pages → project → Settings → Variables and Secrets → Production/Preview. Rebuild after changing values. Never supply a service-role or secret key to the frontend.
+- Database changes for both phases were applied directly to the connected Supabase project. No manual SQL migration is required for that project.
 
-1. Supabase Dashboard → Authentication → Sign In / Providers → Anonymous Sign-Ins: enable anonymous sign-ins. Hosts and players use authenticated anonymous identities. These are browser-specific identities, not durable host accounts; clearing browser data loses access to that identity's rooms. Enable abuse protection/rate limits as appropriate before public use.
-2. Local preview: edit the root `.env.local` file using these exact names:
-   - `VITE_SUPABASE_URL`
-   - `VITE_SUPABASE_PUBLISHABLE_KEY`
-   This file is ignored by Git through `*.local`. Restart the preview server after changing values.
-3. Cloudflare Pages → your project → Settings → Variables and Secrets: add the same two values for Production (and Preview if needed), then redeploy. Vite reads them during build. The publishable key is public; never use a service-role or secret key here.
-4. Use the same Supabase project whose database was configured in Dyad. A different URL requires the schema to be configured in that project too.
+## Phase 2 implementation
 
-## What is implemented
+The host publishes the existing visible game session through `trivia_publish_state`, which verifies the authenticated caller owns the room. `trivia_game_state` is readable only by the host, joined players and TV viewers. Clients have no direct insert/update/delete privileges on game state or submissions. Realtime publishes game-state and submission changes.
 
-- Host clicks **Create online room** to create a unique five-character database-backed room code. Last room restores for the same host browser identity.
-- Player visits `/play`, enters that code, and joins with a Supabase identity.
-- Host fetches the room's roster and subscribes to its database changes.
-- Names, avatars, animated frames, and readiness are stored and synchronized.
-- RLS limits reads to the host or members of the room. Players can update only their own profile fields. Direct client room creation and membership insertion are disallowed; authenticated RPCs generate rooms and join by code.
-- No questions, answer keys, host notes, scores, or timer controls are exposed in the online lobby tables.
+Player and TV sessions use the same online state: lobby, round introductions, questions, ordering items, countdowns, media playback/pause/replay timestamps, reveals, results, rankings and final standings. TV links include `/tv?room=CODE`; bare `/tv` offers room-code entry. TV joins as a viewer rather than becoming a player. Existing host UI and in-dashboard dev windows remain.
 
-## Not yet implemented
+`trivia_submit_answer` derives the player ID from authentication, checks room membership, current question, open/reveal status and server time, and locks the first accepted answer. Answers before the buzzer are allowed. Raw answers are readable only by their owner and the host until the host publishes revealed results. `trivia_close_answers` locks the run and returns all accepted submissions atomically, including last-second submissions. A closed-run record prevents delayed snapshot updates from reopening it.
 
-Online gameplay (questions, submissions, scores, deadlines, server grading), TV synchronization, cloud media storage, presence/leave cleanup, durable host account login, and complete cross-device testing. The player intentionally stays in an online lobby rather than claiming local broadcasts are online gameplay. Existing host gameplay and in-dashboard dev player windows remain local.
+The existing scoring remains host-authoritative: full/half/zero grading for text and exact-order full/zero grading for ordering questions. The host executes the existing grading logic and publishes rankings/results; players cannot write scores or invoke the publish/close RPCs. This is not autonomous server grading or a server-driven game scheduler. The host tab must remain running to progress and grade the game.
 
-## Manual cross-device acceptance check
+Only the current visible public session is published. Answer keys, host notes, answer attachments and future question content are not uploaded into the shared state before reveal. Uploaded media uses a private `trivia-media` bucket and authenticated downloads. Media registry release flags restrict participant reads to paths in the currently published state. Filenames are stripped from network media descriptors to reduce answer hints. External links are included only when their media is published. Once content has been revealed/downloaded, it cannot be made secret again by replaying a question.
 
-After enabling anonymous sign-ins and deploying with both variables, open `/host` in one browser and create a room. Open `/play` in a separate browser or phone and enter the generated code. Set a team name and click Ready. Confirm the host's Players list updates without refreshing. Check an invalid code is rejected and a second player appears independently. Reload the host and confirm its room restores. This check has not been performed by the assistant; TypeScript checks are not a substitute.
+Homepage music is published with the room's waiting-screen state. Round music and foreground clips use the same TV audio controls as before, including restoring background music on pause, mute, volume and talk-over. Browser sound permission is still required on the TV. Device timestamps are translated using an authenticated server clock measurement; network and measurement latency still apply.
 
-The newly added Supabase dependency must also be included in a regenerated pnpm lockfile before any frozen-lockfile Cloudflare deployment. Dyad's dependency installer does not guarantee that the exported pnpm lockfile is updated, and there is no command runner available in this session to verify installation/build or push to GitHub.
+## Verification completed by assistant
+
+- TypeScript checks on all changed source files passed.
+- Database Realtime publication and RLS/privileges were inspected.
+- Rollback-only RPC assertions passed for host-only publishing, pre-buzzer answers, duplicate first-answer lock, closed-run protection and expired-deadline rejection. Temporary test changes were rolled back.
+- No production build command or separate-device phase-2 browser session was executed by the assistant. Phase 1 cross-device success was reported by the user.
+
+## Cross-device acceptance checklist
+
+1. Create/use a room in `/host`; open its TV link on another device, or enter the code on `/tv`. Verify the actual room code and roster.
+2. Join from two separate player browsers, set names/avatars, and mark Ready.
+3. Choose a game → Start game → Start round. Both players and TV must show the same round/question.
+4. Submit one answer before Start buzzer; confirm it appears in host grading. Start buzzer and compare timers.
+5. Submit a second answer before expiry. Confirm retries do not replace it and late submissions are rejected. Reload a player during a question: their submission lock should remain.
+6. Grade text full/half/zero and Reveal answer. Compare scores, answer badges, rankings and player results.
+7. Test ordering exact/wrong order, automatic timeout grading, Next, Previous and Replay. Replay starts a fresh run without old submission locks and removes the previous run's score as before.
+8. Test uploaded video/audio/images, trim boundaries, play/pause/resume/replay, YouTube links, round music, talk-over, and homepage music before choosing a game. Phones still do not render question media, preserving existing behavior.
+9. End the game, verify tied/single winners on TV, then Back to games and waiting music. Verify a second independent room does not receive these updates.
+
+## Remaining limitations
+
+Host gameplay state still lives in its existing React state and game definitions remain in host IndexedDB. Do not reload/close the host mid-game: it does not restore a live game and can publish its lobby state when it reconnects. Player/TV reloads fetch current online state. Host failover/resume, durable host login, presence/leave cleanup, room/media retention cleanup and autonomous server grading are not implemented. Uploads occur when content is first published; large clips can delay that state update and consume storage/bandwidth. Monitor Supabase quotas. Keep media filenames/content free of answer hints.
+
+No new npm dependency was added during phase 2. This session cannot execute pnpm installation, production builds or GitHub pushes. Use the already working deployment pipeline to verify the exported package/lockfile and build; do not assume TypeScript checks replace those checks.

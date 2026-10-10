@@ -3,7 +3,7 @@ import { SessionQuestion } from '@/components/SessionQuestion';
 import { TeamProfileEditor } from '@/components/TeamProfileEditor';
 import type { PlayerProfile, PublicSession } from '@/hooks/use-local-session';
 
-export function PlayerGameView({ profile, session, onSubmit, onProfileChange }: { profile: PlayerProfile; session: PublicSession | null; onSubmit: (answer: string) => void; onProfileChange?: (profile: PlayerProfile) => void }) {
+export function PlayerGameView({ profile, session, onSubmit, onProfileChange }: { profile: PlayerProfile; session: PublicSession | null; onSubmit: (answer: string) => void | Promise<void>; onProfileChange?: (profile: PlayerProfile) => void }) {
   const player = session?.rankings.find(team => team.id === profile.id);
   return <div>
     <header className="flex items-center gap-3 border-b border-border py-4">
