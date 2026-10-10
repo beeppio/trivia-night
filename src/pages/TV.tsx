@@ -6,6 +6,8 @@ import { PREVIEW_ROOM } from '@/lib/preview-data';
 import { Brand } from '@/components/PartyLayout';
 import { BackgroundPattern } from '@/components/BackgroundPattern';
 import { QuestionMedia } from '@/components/QuestionMedia';
+import { useTVSound } from '@/hooks/use-tv-sound';
+import { Button } from '@/components/ui/button';
 
 export default function TV() {
   const broadcastSession = usePlayerSession();
@@ -20,6 +22,7 @@ export default function TV() {
         ...incoming,
         media: incoming.media.map(item => current.media.find(existing => existing.id === item.id) ?? item),
         answerMedia: incoming.answerMedia?.map(item => current.answerMedia?.find(existing => existing.id === item.id) ?? item),
+        roundMusic: incoming.roundMusic && current.roundMusic?.id === incoming.roundMusic.id ? current.roundMusic : incoming.roundMusic,
       } };
     });
     connection.onmessage = event => {
@@ -49,6 +52,9 @@ export default function TV() {
   }, [waiting]);
   const joinUrl = new URL(`/player/${PREVIEW_ROOM}`, window.location.origin).href;
   const remaining = useRemainingSeconds(session?.deadline ?? null, session?.duration ?? 30);
+  const tvSound = useTVSound(session, remaining);
+  const musicActive = Boolean(session?.roundMusic && !session.waiting && !session.ended);
+  const effectiveMusicVolume = session?.musicMuted ? 0 : (session?.musicVolume ?? 0.4) * (session?.musicTalking ? 0.2 : 1);
   const showingQuestion = Boolean(session && !session.waiting && !session.preparing && !session.ended);
   const revealed = session?.answer !== undefined;
   const expired = showingQuestion && session?.deadline !== null && remaining === 0;
@@ -56,6 +62,8 @@ export default function TV() {
   const winners = session?.ended && session.rankings.length ? session.rankings.filter(team => team.score === session.rankings[0].score) : [];
 
   return <main className="relative isolate flex min-h-svh flex-col overflow-hidden bg-background px-5 py-6 text-foreground sm:px-10 lg:px-16 lg:py-10">
+    {!tvSound.enabled && <Button className="relative z-10 mx-auto mb-4 rounded-2xl" onClick={() => { void tvSound.enable(); }}>Enable TV sound</Button>}
+    {musicActive && session?.roundMusic && <div className={session.roundMusic.youtubeId ? 'relative mx-auto mb-5 w-full max-w-md' : 'absolute left-0 top-0 -z-10 h-px w-px overflow-hidden'} aria-hidden={!session.roundMusic.youtubeId}><QuestionMedia key={`${session.roundMusic.id}-${session.roundMusicStartedAt}`} media={[session.roundMusic]} imagesRevealed videoStartedAt={session.roundMusicStartedAt ?? null} audience soundEnabled={tvSound.enabled} volume={effectiveMusicVolume} loop /></div>}
     {waiting && <BackgroundPattern />}
     {!waiting && <header className="relative flex min-h-12 flex-wrap items-center justify-between gap-x-8 gap-y-3 border-b border-primary/25 pb-5 text-lg font-semibold text-primary sm:text-2xl lg:text-3xl">
       <span className="min-w-0 break-words">{session?.ended ? 'Final standings' : waiting ? 'Join the game' : session?.roundName}</span>
@@ -74,12 +82,12 @@ export default function TV() {
             <p className="min-w-0 flex-1 break-words text-lg font-semibold sm:text-2xl">{team.name}</p><p className={`shrink-0 text-xl font-bold tabular-nums sm:text-3xl ${winner ? 'text-yellow-300' : 'text-primary'}`}>{team.score}<span className="ml-2 text-xs">points</span></p>
           </li>;
         })}</ol>
-      </div> : session?.preparing ? <div className="w-full space-y-6 text-center"><h1 className="break-words text-[clamp(2rem,5vw,7rem)] font-bold leading-tight text-primary">{session.roundName}</h1>{session.roundDescription?.trim() && <p className="mx-auto max-w-5xl whitespace-pre-wrap break-words text-[clamp(1.25rem,2.5vw,3rem)] leading-relaxed">{session.roundDescription}</p>}</div> : showingQuestion && session ? <div className="w-full space-y-6 text-center">
-        <p className="text-sm font-semibold tracking-wide text-primary sm:text-lg">Round {session.roundIndex + 1} • Question {session.questionIndex + 1}</p>
+      </div> : session?.preparing ? <div className="w-full space-y-6 text-center"><p className="text-lg font-semibold text-primary sm:text-2xl">Round {session.roundIndex + 1}</p><h1 className="break-words text-[clamp(2rem,5vw,7rem)] font-bold leading-tight text-primary">{session.roundName}</h1>{session.roundDescription?.trim() && <p className="mx-auto max-w-5xl whitespace-pre-wrap break-words text-[clamp(1.25rem,2.5vw,3rem)] leading-relaxed">{session.roundDescription}</p>}</div> : showingQuestion && session ? <div className="w-full space-y-6 text-center">
+        <p className={`text-sm font-semibold tracking-wide sm:text-lg ${revealed ? 'text-white' : 'text-primary'}`}>Round {session.roundIndex + 1} • Question {session.questionIndex + 1}</p>
         {revealed && <p className="text-[clamp(1rem,2vw,2rem)] font-semibold text-primary">Correct Answer</p>}
         <h1 role={expired && !revealed ? 'status' : undefined} className={`whitespace-pre-wrap break-words text-[clamp(2rem,5vw,7rem)] font-bold leading-[1.15] tracking-tight ${expired && !revealed ? 'text-red-400' : 'text-foreground'}`}>{revealed ? session.answer : expired ? 'Time is up!' : session.text}</h1>
         <div className="mx-auto w-full max-w-4xl text-left [&_img]:mx-auto">
-          {revealed ? <QuestionMedia key={`${session.runId}-answer`} media={session.answerMedia || []} imagesRevealed videoStartedAt={session.answerMediaStartedAt} pausedAt={session.answerMediaPausedAt} audience /> : <QuestionMedia key={session.runId} media={session.media} imagesRevealed={session.imagesRevealed} videoStartedAt={session.videoStartedAt} pausedAt={session.mediaPausedAt} audience />}
+          {revealed ? <QuestionMedia key={`${session.runId}-answer`} media={session.answerMedia || []} imagesRevealed videoStartedAt={session.answerMediaStartedAt} pausedAt={session.answerMediaPausedAt} audience soundEnabled={tvSound.enabled} /> : <QuestionMedia key={session.runId} media={session.media} imagesRevealed={session.imagesRevealed} videoStartedAt={session.videoStartedAt} pausedAt={session.mediaPausedAt} audience soundEnabled={tvSound.enabled} />}
         </div>
       </div> : <div className="w-full max-w-5xl space-y-8 text-center">
         <Brand large />

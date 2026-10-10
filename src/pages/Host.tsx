@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowLeft, ArrowRight, Copy, Crown, Eye, Monitor, Pencil, Play, Plus, RotateCcw } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Copy, Crown, Eye, Monitor, Pencil, Play, Plus, RotateCcw, Speech, Volume2, VolumeX } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -14,7 +14,6 @@ import { Buzzer } from '@/components/Buzzer';
 import { QuestionMedia } from '@/components/QuestionMedia';
 import { PREVIEW_ROOM } from '@/lib/preview-data';
 import { loadGames, readLegacyDrafts, saveGame, deleteGame, type LocalGame } from '@/lib/local-games';
-import { useRoundMusic } from '@/hooks/use-round-music';
 import { useHostSession, useRemainingSeconds, type PlayerSubmission, type PublicSession } from '@/hooks/use-local-session';
 import { useTVPreview } from '@/hooks/use-tv-preview';
 import { PlayerLobby } from '@/components/PlayerLobby';
@@ -47,8 +46,11 @@ export default function Host() {
   const [questionRuns, setQuestionRuns] = useState<Record<number, string>>({});
   const [mediaPausedAt, setMediaPausedAt] = useState<number | null>(null);
   const [answerMediaPausedAt, setAnswerMediaPausedAt] = useState<number | null>(null);
+  const [musicMuted, setMusicMuted] = useState(false);
+  const [musicTalking, setMusicTalking] = useState(false);
+  const [musicVolume, setMusicVolume] = useState(0.4);
+  const [musicStartedAt, setMusicStartedAt] = useState<number | null>(null);
   const remaining = useRemainingSeconds(deadline, deadline ? questionDuration : duration);
-  const music = useRoundMusic();
 
   useEffect(() => { if (deadline && remaining === 0 && stage === 'question') closeQuestion(); }, [deadline, remaining, stage]);
 
@@ -92,6 +94,15 @@ export default function Host() {
 
   const questions = useMemo(() => activeGame?.rounds.flatMap((round, roundIndex) => round.questions.map((question, questionIndex) => ({ ...question, roundName: round.name, roundDescription: round.description, roundIndex, questionIndex }))) || [], [activeGame]);
   const question = questions[index];
+  const orderItems = useMemo(() => {
+    const items = [...(question?.orderItems || [])];
+    for (let index = items.length - 1; index > 0; index--) {
+      const other = Math.floor(Math.random() * (index + 1));
+      [items[index], items[other]] = [items[other], items[index]];
+    }
+    if (items.length > 1 && items.every((item, index) => item === question?.orderItems?.[index])) items.push(items.shift()!);
+    return items;
+  }, [question, runId]);
   const fullPoints = points[runId] ?? question?.points ?? 10;
   const scoredTeams = useMemo(() => teams.map(team => ({ ...team, score: Object.entries(publishedResults).reduce((total, [id, submissions]) => total + (submissions.find(answer => answer.teamId === team.id)?.grade ?? 0) * (points[id] ?? 10), 0) })).sort((a, b) => b.score - a.score || a.name.localeCompare(b.name)), [teams, publishedResults, points]);
   const publicSession = useMemo<PublicSession | null>(() => !activeGame || !question || stage === 'lobby' ? null : ({
@@ -99,15 +110,16 @@ export default function Host() {
     text: stage === 'waiting' || stage === 'preparing' ? '' : question.text, media: stage === 'waiting' || stage === 'preparing' ? [] : question.questionMedia, imagesRevealed, videoStartedAt, answerMediaStartedAt, deadline, duration: deadline ? questionDuration : duration,
     open: stage === 'question' && deadline !== null, ended: stage === 'ended', rankings: scoredTeams,
     submittedTeamIds: (answers[runId] || []).filter(answer => answer.submitted !== false).map(answer => answer.teamId),
+    questionType: question.type || 'text', orderItems: question.type === 'order' ? orderItems : undefined,
     ...(stage === 'reveal' ? { answer: question.answer, answerMedia: question.answerMedia, results: (publishedResults[runId] || []).map(result => ({ ...result, points: (result.grade ?? 0) * fullPoints })) } : {}),
-  }), [activeGame, question, stage, runId, imagesRevealed, videoStartedAt, mediaPausedAt, answerMediaPausedAt, answerMediaStartedAt, deadline, questionDuration, duration, scoredTeams, publishedResults, fullPoints, answers]);
+  }), [activeGame, question, stage, runId, imagesRevealed, videoStartedAt, mediaPausedAt, answerMediaPausedAt, answerMediaStartedAt, deadline, questionDuration, duration, scoredTeams, publishedResults, fullPoints, answers, orderItems]);
 
-  const tvSession = useMemo<PublicSession>(() => publicSession ?? {
+  const tvSession = useMemo<PublicSession>(() => ({ ...(publicSession ?? {
     runId: '', title: '', waiting: true, roundName: '', roundIndex: 0, questionIndex: 0,
     text: '', media: [], imagesRevealed: false, videoStartedAt: null, answerMediaStartedAt: null,
     deadline: null, duration, open: false, ended: false,
     rankings: scoredTeams.map(team => ({ ...team, score: 0 })),
-  }, [publicSession, duration, scoredTeams]);
+  }), roundMusic: publicSession && !publicSession.waiting && !publicSession.ended ? activeGame?.rounds[publicSession.roundIndex].music : undefined, roundMusicStartedAt: musicStartedAt, musicMuted, musicTalking, musicVolume }), [publicSession, duration, scoredTeams, activeGame, musicStartedAt, musicMuted, musicTalking, musicVolume]);
 
   const openTVPreview = useTVPreview(tvSession);
 
@@ -161,7 +173,7 @@ export default function Host() {
   const startGame = () => {
     if (!allReady || !activeGame || stage !== 'waiting') return;
     setStage('preparing');
-    music.switchTrack(activeGame.rounds[0].music);
+    setMusicStartedAt(Date.now());
   };
   const startRound = () => {
     if (stage !== 'preparing') return;
@@ -181,7 +193,7 @@ export default function Host() {
   const changeQuestion = (next: number) => {
     if (next > index && (deadline === null || Date.now() < deadline)) return;
     const differentRound = questions[next].roundIndex !== question.roundIndex;
-    if (differentRound) music.switchTrack(activeGame?.rounds[questions[next].roundIndex].music);
+    if (differentRound) setMusicStartedAt(Date.now());
     const previousRun = questionRuns[next];
     const nextRun = previousRun || crypto.randomUUID();
     const isReview = Boolean(previousRun && (publishedResults[nextRun] || answers[nextRun]?.length));
@@ -255,13 +267,13 @@ export default function Host() {
           <section className="panel p-5"><p className="eyebrow">ROOM CODE</p><div className="mt-3 flex items-center justify-between"><span className="display-font text-4xl font-bold tracking-[.15em] text-primary">{PREVIEW_ROOM}</span><Button variant="ghost" size="icon" aria-label="Copy room code" className="rounded-xl" onClick={copyCode}><Copy className="h-4 w-4" /></Button></div></section>
           <HostPlayers players={scoredTeams} showReadiness={stage === 'lobby' || stage === 'waiting'} showAnswers={stage === 'question' || stage === 'closed'} submittedTeamIds={publicSession?.submittedTeamIds} />
           <Buzzer duration={duration} remaining={remaining} running={deadline !== null} countdownDuration={questionDuration} deadline={deadline} onChange={changeDuration} />
-          {activeGame && stage !== 'ended' && <section className="panel space-y-4 p-5"><h2 className="font-semibold">Round music</h2><Button variant="outline" className="w-full rounded-xl" onClick={() => music.toggleMusic(activeGame.rounds[question.roundIndex].music)}>{music.enabled ? 'Mute music' : 'Enable music'}</Button><label className="flex items-center gap-3 text-xs text-muted-foreground">Volume<input aria-label="Round music volume" type="range" min="0" max="1" step="0.05" value={music.volume} onChange={event => music.changeVolume(Number(event.target.value))} className="w-full accent-primary" /></label></section>}
+          {activeGame && stage !== 'ended' && <section className="panel space-y-4 p-5"><h2 className="font-semibold">Round music</h2><div className="flex gap-2"><Button variant="outline" className="flex-1 rounded-xl text-primary" aria-pressed={musicMuted} onClick={() => setMusicMuted(previous => !previous)}>{musicMuted ? <VolumeX className="mr-2 h-4 w-4" /> : <Volume2 className="mr-2 h-4 w-4" />}{musicMuted ? 'Unmute' : 'Mute'}</Button><Button variant="outline" size="icon" aria-label="Talk over music" title="Talk over music" aria-pressed={musicTalking} className={`rounded-xl text-primary ${musicTalking ? 'bg-primary/20 ring-1 ring-primary' : ''}`} onClick={() => setMusicTalking(previous => !previous)}><Speech className="h-5 w-5" /></Button></div><p className="text-xs text-muted-foreground">{musicTalking ? 'Talk-over on · music lowered to 20%' : 'Music plays on the TV only. Click the speaking icon to lower it while you talk.'}</p><label className="flex items-center gap-3 text-xs text-muted-foreground">Volume<input aria-label="Round music volume" type="range" min="0" max="1" step="0.05" value={musicVolume} onChange={event => setMusicVolume(Number(event.target.value))} className="w-full accent-primary" /></label></section>}
           <Button variant="outline" className="w-full rounded-xl border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive" disabled={stage === 'lobby' || stage === 'ended'} onClick={() => setConfirmEnd(true)}>End game</Button>
         </aside>
       </div>
     </main>
     <DevPlayerWindows teams={teams} session={publicSession} onAdd={addPlayer} onSubmit={receiveSubmission} onProfileChange={registerTeam} onTVPreview={openTVPreview} />
     {editor && <NewGameDialog initialGame={editor.game} onClose={() => setEditor(null)} onSave={persistGame} onDelete={removeGame} />}
-    <Dialog open={confirmEnd} onOpenChange={setConfirmEnd}><DialogContent className="rounded-2xl"><DialogHeader><DialogTitle>End this game?</DialogTitle></DialogHeader><p className="text-sm text-muted-foreground">Your saved questions and files will be kept.</p><div className="mt-4 flex justify-end gap-3"><Button variant="outline" className="rounded-xl" onClick={() => setConfirmEnd(false)}>Keep playing</Button><Button className="rounded-xl bg-destructive hover:bg-destructive/90" onClick={() => { music.switchTrack(); setStage('ended'); setDeadline(null); setConfirmEnd(false); }}>End game</Button></div></DialogContent></Dialog>
+    <Dialog open={confirmEnd} onOpenChange={setConfirmEnd}><DialogContent className="rounded-2xl"><DialogHeader><DialogTitle>End this game?</DialogTitle></DialogHeader><p className="text-sm text-muted-foreground">Your saved questions and files will be kept.</p><div className="mt-4 flex justify-end gap-3"><Button variant="outline" className="rounded-xl" onClick={() => setConfirmEnd(false)}>Keep playing</Button><Button className="rounded-xl bg-destructive hover:bg-destructive/90" onClick={() => { setMusicStartedAt(null); setStage('ended'); setDeadline(null); setConfirmEnd(false); }}>End game</Button></div></DialogContent></Dialog>
   </PartyLayout>;
 }

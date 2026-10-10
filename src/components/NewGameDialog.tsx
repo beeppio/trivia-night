@@ -40,7 +40,10 @@ export function NewGameDialog({ onClose, onSave, onDelete, initialGame }: { onCl
   };
   const submit = async (event: FormEvent) => {
     event.preventDefault();
-    const bytes = game.rounds.reduce((total, round) => total + (round.music?.file.size || 0) + round.questions.flatMap(question => [...question.questionMedia, ...question.answerMedia]).reduce((subtotal, media) => subtotal + media.file.size, 0), 0);
+    const bytes = game.rounds.reduce((total, round) => total + (round.music?.file?.size || 0) + round.questions.flatMap(question => [...question.questionMedia, ...question.answerMedia]).reduce((subtotal, media) => subtotal + (media.file?.size || 0), 0), 0);
+    const allMedia = game.rounds.flatMap(round => [...(round.music ? [round.music] : []), ...round.questions.flatMap(question => [...question.questionMedia, ...question.answerMedia])]);
+    if (allMedia.some(media => media.trimEnd !== undefined && media.trimEnd <= (media.trimStart ?? 0))) { toast.error('Every media end time must be after its start time.'); return; }
+    if (game.rounds.some(round => round.questions.some(question => question.type === 'order' && ((question.orderItems?.length ?? 0) < 2 || question.orderItems!.some(item => !item.trim()) || new Set(question.orderItems!.map(item => item.trim())).size !== question.orderItems!.length)))) { toast.error('Ordering questions need at least two distinct, non-empty items.'); return; }
     if (bytes > 100 * 1024 * 1024) { toast.error('Attachments must total 100 MB or less per game.'); return; }
     setSaving(true);
     try {
@@ -73,7 +76,8 @@ export function NewGameDialog({ onClose, onSave, onDelete, initialGame }: { onCl
                   <MediaUpload id={`question-files-${question.id}`} label={`Add media to round ${roundIndex + 1}, question ${questionIndex + 1}`} media={question.questionMedia} onChange={questionMedia => updateQuestion(round.id, question.id, { questionMedia })} />
                 </div>
                 <div className="space-y-3">
-                  <Textarea id={`answer-${question.id}`} aria-label={`Answer to round ${roundIndex + 1}, question ${questionIndex + 1}`} value={question.answer} onChange={event => updateQuestion(round.id, question.id, { answer: event.target.value })} placeholder="Answer" maxLength={4000} className="min-h-28 rounded-xl bg-transparent placeholder:text-muted-foreground" />
+                  <Select value={question.type || 'text'} onValueChange={value => updateQuestion(round.id, question.id, value === 'order' ? { type: 'order', orderItems: question.orderItems || ['', ''], answer: (question.orderItems || []).map((item, index) => `${index + 1}. ${item}`).join('\n') } : { type: 'text' })}><SelectTrigger aria-label="Question type" className="h-11 rounded-xl bg-transparent"><SelectValue /></SelectTrigger><SelectContent className="rounded-xl"><SelectItem value="text">Written answer</SelectItem><SelectItem value="order">Put items in order</SelectItem></SelectContent></Select>
+                  {question.type === 'order' ? <div className="space-y-3"><p className="text-sm font-semibold text-primary">Items in correct order (one per line)</p><Textarea aria-label="Items in correct order" value={(question.orderItems || []).join('\n')} maxLength={3000} onChange={event => { const orderItems = event.target.value.split('\n'); updateQuestion(round.id, question.id, { orderItems, answer: orderItems.map((item, index) => `${index + 1}. ${item}`).join('\n') }); }} placeholder={'First item\nSecond item\nThird item'} className="min-h-28 rounded-xl bg-transparent" /><p className="text-xs text-muted-foreground">Players receive shuffled badges. The answer is the order entered here.</p></div> : <Textarea id={`answer-${question.id}`} aria-label={`Answer to round ${roundIndex + 1}, question ${questionIndex + 1}`} value={question.answer} onChange={event => updateQuestion(round.id, question.id, { answer: event.target.value })} placeholder="Answer" maxLength={4000} className="min-h-28 rounded-xl bg-transparent placeholder:text-muted-foreground" />}
                   <MediaUpload id={`answer-files-${question.id}`} label={`Add media to answer ${questionIndex + 1} in round ${roundIndex + 1}`} media={question.answerMedia} onChange={answerMedia => updateQuestion(round.id, question.id, { answerMedia })} />
                 </div>
               </div>

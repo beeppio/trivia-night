@@ -9,6 +9,13 @@ export type PublicSession = {
   waiting?: boolean;
   preparing?: boolean;
   questionPoints?: number;
+  questionType?: 'text' | 'order';
+  orderItems?: string[];
+  roundMusic?: GameMedia;
+  roundMusicStartedAt?: number | null;
+  musicMuted?: boolean;
+  musicTalking?: boolean;
+  musicVolume?: number;
   mediaPausedAt?: number | null;
   answerMediaPausedAt?: number | null;
   roundName: string;

@@ -1,72 +1,81 @@
 import { useEffect, useRef, useState } from 'react';
 import { FileText, Music2, Pause, Play, RotateCcw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { YouTubeMedia } from '@/components/YouTubeMedia';
+import { useMediaUrl } from '@/hooks/use-media-url';
 import type { GameMedia } from '@/lib/local-games';
 
-type PlaybackProps = { imagesRevealed: boolean; videoStartedAt: number | null; pausedAt?: number | null; audience?: boolean; onToggle?: () => void; onReplay?: () => void; controlsDisabled?: boolean };
+type PlaybackProps = { imagesRevealed: boolean; videoStartedAt: number | null; pausedAt?: number | null; audience?: boolean; soundEnabled?: boolean; volume?: number; loop?: boolean; onToggle?: () => void; onReplay?: () => void; controlsDisabled?: boolean };
 const timeLabel = (seconds: number) => `${Math.floor(seconds / 60)}:${String(Math.floor(seconds % 60)).padStart(2, '0')}`;
 
-function QuestionMediaItem({ media, imagesRevealed, videoStartedAt, pausedAt = null, audience = false, onToggle, onReplay, controlsDisabled = false }: PlaybackProps & { media: GameMedia }) {
-  const [url, setUrl] = useState('');
-  const [visible, setVisible] = useState(false);
+function QuestionMediaItem({ media, imagesRevealed, videoStartedAt, pausedAt = null, audience = false, soundEnabled = false, volume = 1, loop = false, onToggle, onReplay, controlsDisabled = false }: PlaybackProps & { media: GameMedia }) {
+  const url = useMediaUrl(media);
   const [blocked, setBlocked] = useState(false);
-  const [progress, setProgress] = useState(0);
   const [elapsed, setElapsed] = useState(0);
-  const [duration, setDuration] = useState(0);
+  const [duration, setDuration] = useState(Math.max(0, (media.trimEnd ?? 0) - (media.trimStart ?? 0)));
   const [ended, setEnded] = useState(false);
   const element = useRef<HTMLMediaElement | null>(null);
-  useEffect(() => {
-    const objectUrl = URL.createObjectURL(media.file);
-    setUrl(objectUrl);
-    return () => URL.revokeObjectURL(objectUrl);
-  }, [media.file]);
-  useEffect(() => {
-    setVisible(false);
-    if (!imagesRevealed || !url) return;
-    let second = 0;
-    const frame = requestAnimationFrame(() => { second = requestAnimationFrame(() => setVisible(true)); });
-    return () => { cancelAnimationFrame(frame); cancelAnimationFrame(second); };
-  }, [imagesRevealed, url]);
+  const start = media.trimStart ?? 0;
   const updateProgress = () => {
     const player = element.current;
     if (!player) return;
-    setElapsed(player.currentTime);
-    if (Number.isFinite(player.duration) && player.duration > 0) { setDuration(player.duration); setProgress(player.currentTime / player.duration * 100); }
+    const end = Math.min(media.trimEnd ?? player.duration, player.duration);
+    if (!Number.isFinite(end)) return;
+    setDuration(Math.max(0, end - start));
+    setElapsed(Math.max(0, player.currentTime - start));
+    if (player.currentTime >= end) {
+      if (loop && videoStartedAt && pausedAt === null) { player.currentTime = start; void player.play().catch(() => setBlocked(true)); }
+      else { player.pause(); setEnded(true); }
+    }
   };
   useEffect(() => {
     const player = element.current;
-    if (!player || !url) return;
+    if (!player) return;
+    player.muted = !soundEnabled;
+    player.volume = volume;
+    if (soundEnabled && videoStartedAt && pausedAt === null && !ended) void player.play().catch(() => setBlocked(true));
+  }, [soundEnabled, volume]);
+  useEffect(() => {
+    const player = element.current;
+    if (!player || !url || media.youtubeId) return;
     setBlocked(false); setEnded(false);
-    if (!videoStartedAt) { player.pause(); player.currentTime = 0; setProgress(0); setElapsed(0); return; }
     const sync = () => {
-      const position = Math.max(0, ((pausedAt ?? Date.now()) - videoStartedAt) / 1000);
-      player.currentTime = Math.min(position, Number.isFinite(player.duration) ? player.duration : position);
+      const end = Math.min(media.trimEnd ?? player.duration, player.duration);
+      const length = Math.max(0, end - start);
+      const position = videoStartedAt ? Math.max(0, ((pausedAt ?? Date.now()) - videoStartedAt) / 1000) : 0;
+      player.currentTime = start + (loop && length > 0 ? position % length : Math.min(position, length));
       updateProgress();
-      if (pausedAt !== null || (Number.isFinite(player.duration) && position >= player.duration)) { player.pause(); setEnded(pausedAt === null); }
+      if (!videoStartedAt || pausedAt !== null || (!loop && position >= length)) { player.pause(); setEnded(Boolean(videoStartedAt && pausedAt === null && position >= length)); }
       else void player.play().catch(() => setBlocked(true));
     };
-    if (player.readyState >= 1) sync();
-    else player.addEventListener('loadedmetadata', sync, { once: true });
-    return () => player.removeEventListener('loadedmetadata', sync);
-  }, [videoStartedAt, pausedAt, url]);
-  if (media.kind === 'image') return imagesRevealed && url ? <img src={url} alt="Question illustration" style={{ opacity: visible ? 1 : 0 }} className="max-h-96 w-auto rounded-xl object-contain transition-opacity duration-700 motion-reduce:transition-none" /> : null;
+    if (player.readyState >= 1) sync(); else player.addEventListener('loadedmetadata', sync, { once: true });
+    const interval = window.setInterval(updateProgress, 100);
+    return () => { player.removeEventListener('loadedmetadata', sync); window.clearInterval(interval); };
+  }, [videoStartedAt, pausedAt, url, start, media.trimEnd, loop]);
+  useEffect(() => {
+    if (!media.youtubeId || audience) return;
+    const tick = () => {
+      const length = media.trimEnd !== undefined ? media.trimEnd - start : 0;
+      const position = videoStartedAt ? Math.max(0, ((pausedAt ?? Date.now()) - videoStartedAt) / 1000) : 0;
+      setElapsed(length > 0 ? Math.min(position, length) : position);
+      setDuration(length); setEnded(length > 0 && position >= length);
+    };
+    tick(); const interval = window.setInterval(tick, 100);
+    return () => window.clearInterval(interval);
+  }, [media.youtubeId, audience, videoStartedAt, pausedAt, start, media.trimEnd]);
+  if (media.kind === 'image') return imagesRevealed && url ? <img src={url} alt={media.name || 'Question illustration'} className="max-h-96 w-auto rounded-xl object-contain" /> : null;
   if (media.kind === 'pdf') return url ? <a href={url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 text-sm text-primary"><FileText className="h-4 w-4" />Open PDF</a> : null;
   const playing = videoStartedAt !== null && pausedAt === null && !ended;
   const toggleLabel = playing ? 'Pause' : pausedAt !== null ? 'Resume' : 'Play';
-  const videoControls = !audience && onToggle && <div className="flex flex-wrap items-center gap-2"><Button size="sm" variant="outline" className="rounded-xl border-primary/40 text-primary" disabled={controlsDisabled} onClick={ended ? onReplay : onToggle}>{playing ? <Pause className="mr-2 h-4 w-4" /> : <Play className="mr-2 h-4 w-4" />}{toggleLabel}</Button><Button size="icon" variant="ghost" aria-label="Replay video" title="Replay" className="h-9 w-9 rounded-xl text-primary hover:bg-primary/15" disabled={controlsDisabled} onClick={onReplay}><RotateCcw className="h-4 w-4" /></Button><span className="ml-auto text-xs tabular-nums text-muted-foreground">{timeLabel(elapsed)} / {timeLabel(duration)}</span></div>;
+  const controls = !audience && <><Button size="icon" variant="ghost" aria-label={`${toggleLabel} ${media.kind}`} title={toggleLabel} disabled={controlsDisabled} onClick={ended ? onReplay : onToggle} className="h-10 w-10 shrink-0 rounded-full text-primary hover:bg-primary/15 hover:text-primary">{playing ? <Pause className="h-6 w-6 fill-current" /> : <Play className="h-6 w-6 fill-current" />}</Button></>;
+  const replay = !audience && <Button size="icon" variant="ghost" aria-label={`Replay ${media.kind}`} title="Replay" disabled={controlsDisabled} onClick={onReplay} className="h-10 w-10 shrink-0 rounded-full text-primary hover:bg-primary/15 hover:text-primary"><RotateCcw className="h-5 w-5" /></Button>;
+  const youtube = media.youtubeId && audience ? <YouTubeMedia media={media} startedAt={videoStartedAt} pausedAt={pausedAt} soundEnabled={soundEnabled} volume={volume} loop={loop} onProgress={(time, length, done) => { setElapsed(time); setDuration(length); setEnded(done); }} /> : null;
   return <div className="space-y-3">
     {media.kind === 'audio' ? <div className="rounded-xl border border-primary/30 bg-secondary/20 p-4">
-      <audio ref={node => { element.current = node; }} src={url || undefined} preload="metadata" onLoadedMetadata={updateProgress} onTimeUpdate={updateProgress} onEnded={() => setEnded(true)} />
-      <div className="flex items-center gap-3">
-        {audience ? <Music2 aria-hidden="true" className="h-6 w-6 shrink-0 text-primary" /> : <Button size="icon" variant="ghost" aria-label={`${toggleLabel} audio`} title={toggleLabel} disabled={controlsDisabled} onClick={ended ? onReplay : onToggle} className="h-10 w-10 shrink-0 rounded-full text-primary hover:bg-primary/15 hover:text-primary">{playing ? <Pause className="h-6 w-6 fill-current" /> : <Play className="h-6 w-6 fill-current" />}</Button>}
-        <div className="min-w-0 flex-1"><div role="progressbar" aria-label="Audio progress" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(progress)} className="h-2 w-full overflow-hidden rounded-full bg-secondary"><div style={{ width: `${progress}%` }} className="h-full rounded-full bg-primary transition-[width] duration-200" /></div>{!audience && <p className="mt-2 text-xs tabular-nums text-muted-foreground">{timeLabel(elapsed)} / {timeLabel(duration)}</p>}</div>
-        {!audience && <Button size="icon" variant="ghost" aria-label="Replay audio" title="Replay" disabled={controlsDisabled} onClick={onReplay} className="h-10 w-10 shrink-0 rounded-full text-primary hover:bg-primary/15 hover:text-primary"><RotateCcw className="h-5 w-5" /></Button>}
-      </div>
-    </div> : <><div className="relative aspect-video overflow-hidden rounded-xl bg-black">
-      <video ref={node => { element.current = node; }} src={url || undefined} playsInline preload="metadata" onLoadedMetadata={updateProgress} onTimeUpdate={updateProgress} onEnded={() => setEnded(true)} controls={false} tabIndex={-1} disablePictureInPicture disableRemotePlayback className="pointer-events-none h-full w-full object-contain" />
-      {!videoStartedAt && <div className="pointer-events-none absolute inset-0 flex items-center justify-center bg-black"><span className="flex h-16 w-16 items-center justify-center rounded-full bg-primary/20"><Play aria-hidden="true" className="h-8 w-8 fill-primary text-primary" /></span></div>}
-    </div>{videoControls}</>}
-    {blocked && <p role="status" className="text-xs text-muted-foreground">{audience ? 'Your browser blocked host-triggered playback. Allow autoplay for this site in your browser settings.' : 'Your browser blocked playback. Allow autoplay for this site in your browser settings.'}</p>}
+      {media.youtubeId ? youtube : <audio ref={node => { element.current = node; }} src={url || undefined} muted={!soundEnabled} preload="metadata" onLoadedMetadata={updateProgress} onTimeUpdate={updateProgress} onEnded={() => setEnded(!loop)} onError={() => setBlocked(true)} />}
+      <div className="flex items-center gap-3">{audience ? <Music2 aria-hidden="true" className="h-6 w-6 shrink-0 text-primary" /> : controls}<div className="min-w-0 flex-1"><div role="progressbar" aria-label="Audio progress" aria-valuemin={0} aria-valuemax={100} aria-valuenow={duration > 0 ? Math.round(elapsed / duration * 100) : 0} className="h-2 overflow-hidden rounded-full bg-secondary"><div style={{ width: `${duration > 0 ? Math.min(100, elapsed / duration * 100) : 0}%` }} className="h-full rounded-full bg-primary transition-[width] duration-100" /></div>{!audience && <p className="mt-2 text-xs tabular-nums text-muted-foreground">{timeLabel(elapsed)} / {duration > 0 ? timeLabel(duration) : '—'}</p>}</div>{replay}</div>
+    </div> : <>{media.youtubeId ? audience ? youtube : <div className="flex aspect-video items-center justify-center rounded-xl bg-secondary text-primary">YouTube video · TV playback only</div> : <div className="relative aspect-video overflow-hidden rounded-xl bg-secondary"><video ref={node => { element.current = node; }} src={url || undefined} muted={!soundEnabled} playsInline preload="metadata" onLoadedMetadata={updateProgress} onTimeUpdate={updateProgress} onEnded={() => setEnded(!loop)} onError={() => setBlocked(true)} controls={false} tabIndex={-1} disablePictureInPicture disableRemotePlayback className="pointer-events-none h-full w-full object-contain" />{!videoStartedAt && <div className="pointer-events-none absolute inset-0 flex items-center justify-center"><Play className="h-12 w-12 fill-primary text-primary" /></div>}</div>}{!audience && <div className="flex items-center gap-2">{controls}<span className="ml-auto text-xs tabular-nums text-muted-foreground">{timeLabel(elapsed)} / {duration > 0 ? timeLabel(duration) : '—'}</span>{replay}</div>}</>}
+    {blocked && <p role="status" className="text-xs text-destructive">Media could not play. Check the link/file and allow autoplay on the TV screen.</p>}
   </div>;
 }
 
