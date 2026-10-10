@@ -55,7 +55,7 @@ export default function TV() {
   const joinUrl = new URL(`/player/${PREVIEW_ROOM}`, window.location.origin).href;
   const remaining = useRemainingSeconds(session?.deadline ?? null, session?.duration ?? 30);
   const tvSound = useTVSound(session, remaining);
-  const musicActive = Boolean(session?.roundMusic && !session.waiting && !session.ended);
+  const musicActive = Boolean(session?.roundMusic && !session.ended);
   const foregroundPlaying = Object.values(mediaPlaying).some(Boolean);
   const effectiveMusicVolume = session?.musicMuted || foregroundPlaying ? 0 : (session?.musicVolume ?? 0.4) * (session?.musicTalking ? 0.2 : 1);
   const showingQuestion = Boolean(session && !session.waiting && !session.preparing && !session.ended);

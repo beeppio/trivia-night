@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import type { GameMedia } from '@/lib/local-games';
+import { Play } from 'lucide-react';
 
 type YouTubePlayer = { seekTo: (time: number, allowSeekAhead: boolean) => void; playVideo: () => void; pauseVideo: () => void; mute: () => void; unMute: () => void; setVolume: (volume: number) => void; getDuration: () => number; getCurrentTime: () => number; destroy: () => void };
 type YouTubeAPI = { Player: new (element: HTMLElement, options: { videoId: string; playerVars: Record<string, string | number>; events: { onReady: () => void; onError: () => void } }) => YouTubePlayer };
@@ -75,5 +76,5 @@ export function YouTubeMedia({ media, startedAt, pausedAt, soundEnabled, volume,
     const interval = window.setInterval(tick, 100);
     return () => window.clearInterval(interval);
   }, [ready, startedAt, pausedAt, loop, media.trimStart, media.trimEnd]);
-  return <div className="relative aspect-video overflow-hidden rounded-xl bg-secondary"><div ref={container} className="pointer-events-none absolute -top-24 bottom-0 left-0 w-full [&_iframe]:h-full [&_iframe]:w-full" />{((!preview && (!startedAt || pausedAt !== null || clipEnded)) || !ready) && !error && <div className="absolute inset-0 flex items-center justify-center bg-background text-sm text-primary">{!ready ? 'Loading media…' : clipEnded ? 'Clip finished' : pausedAt !== null ? 'Video paused' : 'Ready for host playback'}</div>}{error && <p role="alert" className="absolute inset-0 flex items-center justify-center bg-background p-5 text-sm text-destructive">Video could not play. It may be unavailable or embedding may be disabled.</p>}</div>;
+  return <div className="relative aspect-video overflow-hidden rounded-xl bg-secondary"><div ref={container} className="pointer-events-none absolute -top-24 bottom-0 left-0 w-full [&_iframe]:h-full [&_iframe]:w-full" />{((!preview && (!startedAt || pausedAt !== null || clipEnded)) || !ready) && !error && <div className={`pointer-events-none absolute inset-0 flex items-center justify-center text-sm text-primary ${!startedAt && !preview ? 'bg-secondary' : 'bg-background'}`}>{!startedAt && !preview ? <Play aria-hidden="true" className="h-16 w-16 fill-primary text-primary" /> : !ready ? 'Loading media…' : clipEnded ? 'Clip finished' : 'Video paused'}</div>}{error && <p role="alert" className="absolute inset-0 flex items-center justify-center bg-background p-5 text-sm text-destructive">Video could not play. It may be unavailable or embedding may be disabled.</p>}</div>;
 }

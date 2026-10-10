@@ -1,7 +1,7 @@
 export type GameMedia = { id: string; name: string; kind: 'image' | 'audio' | 'video' | 'pdf'; file?: Blob; url?: string; youtubeId?: string; trimStart?: number; trimEnd?: number };
 export type GameQuestion = { id: string; text: string; answer: string; type?: 'text' | 'order'; orderItems?: string[]; points?: number; hostNotes?: string; questionMedia: GameMedia[]; answerMedia: GameMedia[] };
 export type GameRound = { id: string; name: string; description?: string; music?: GameMedia; questions: GameQuestion[] };
-export type LocalGame = { id: string; title: string; rounds: GameRound[] };
+export type LocalGame = { id: string; title: string; homeMusic?: GameMedia; rounds: GameRound[] };
 
 export const emptyQuestion = (): GameQuestion => ({ id: crypto.randomUUID(), text: '', answer: '', points: 10, questionMedia: [], answerMedia: [] });
 export const emptyRound = (): GameRound => ({ id: crypto.randomUUID(), name: '', questions: [emptyQuestion()] });
