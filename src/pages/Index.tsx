@@ -1,14 +1,16 @@
-import { PartyLayout } from '@/components/PartyLayout';
+import { Brand, PartyLayout } from '@/components/PartyLayout';
 import { BackgroundPattern } from '@/components/BackgroundPattern';
 import { PREVIEW_ROOM, PLAYER_URL } from '@/lib/preview-data';
 
 export default function Index() {
   return (
-    <PartyLayout>
+    <PartyLayout showHeaderLogo={false}>
       <main className="relative isolate flex min-h-[calc(100svh-190px)] items-center justify-center overflow-hidden px-5 py-16">
         <BackgroundPattern />
-        <section className="enter relative w-full max-w-2xl text-center">
-          <h1 className="text-4xl font-bold tracking-tight sm:text-6xl">Join the game</h1>
+        <section className="enter relative w-full max-w-3xl text-center">
+          <Brand large />
+          <h1 className="text-3xl font-bold leading-tight tracking-tight sm:text-5xl">Welcome to 285's Trivia Night</h1>
+          <h2 className="mt-8 text-2xl font-semibold tracking-tight sm:text-3xl">Join the game</h2>
           <p className="mt-6 text-base leading-7 text-muted-foreground sm:text-lg">
             On your phone, go to the websites and enter the room code
           </p>
