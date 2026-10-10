@@ -16,8 +16,9 @@ import { PREVIEW_ROOM } from '@/lib/preview-data';
 import { loadGames, readLegacyDrafts, saveGame, deleteGame, type LocalGame } from '@/lib/local-games';
 import { useRoundMusic } from '@/hooks/use-round-music';
 import { useHostSession, useRemainingSeconds, type PlayerSubmission, type PublicSession } from '@/hooks/use-local-session';
+import { PlayerLobby } from '@/components/PlayerLobby';
 
-type Stage = 'lobby' | 'question' | 'closed' | 'reveal' | 'ended';
+type Stage = 'lobby' | 'waiting' | 'question' | 'closed' | 'reveal' | 'ended';
 
 export default function Host() {
   const [games, setGames] = useState<LocalGame[]>([]);
@@ -91,8 +92,8 @@ export default function Host() {
   const fullPoints = points[runId] ?? question?.points ?? 10;
   const scoredTeams = useMemo(() => teams.map(team => ({ ...team, score: Object.entries(publishedResults).reduce((total, [id, submissions]) => total + (submissions.find(answer => answer.teamId === team.id)?.grade ?? 0) * (points[id] ?? 10), 0) })).sort((a, b) => b.score - a.score || a.name.localeCompare(b.name)), [teams, publishedResults, points]);
   const publicSession = useMemo<PublicSession | null>(() => !activeGame || !question || stage === 'lobby' ? null : ({
-    runId, title: activeGame.title, roundName: question.roundName, roundIndex: question.roundIndex, questionIndex: question.questionIndex,
-    text: question.text, media: question.questionMedia, imagesRevealed, videoStartedAt, answerMediaStartedAt, deadline, duration: deadline ? questionDuration : duration,
+    runId, title: activeGame.title, waiting: stage === 'waiting', roundName: stage === 'waiting' ? '' : question.roundName, roundIndex: question.roundIndex, questionIndex: question.questionIndex,
+    text: stage === 'waiting' ? '' : question.text, media: stage === 'waiting' ? [] : question.questionMedia, imagesRevealed, videoStartedAt, answerMediaStartedAt, deadline, duration: deadline ? questionDuration : duration,
     open: stage === 'question' && deadline !== null, ended: stage === 'ended', rankings: scoredTeams,
     ...(stage === 'reveal' ? { answer: question.answer, answerMedia: question.answerMedia, results: (publishedResults[runId] || []).map(result => ({ ...result, points: (result.grade ?? 0) * fullPoints })) } : {}),
   }), [activeGame, question, stage, runId, imagesRevealed, videoStartedAt, answerMediaStartedAt, deadline, questionDuration, duration, scoredTeams, publishedResults, fullPoints]);
@@ -108,14 +109,14 @@ export default function Host() {
   }
   const registerTeam = (profile: Team) => setTeams(previous => {
     const existing = previous.find(team => team.id === profile.id);
-    if (existing?.name === profile.name && existing?.avatarUrl === profile.avatarUrl) return previous;
+    if (existing?.name === profile.name && existing?.avatarUrl === profile.avatarUrl && existing?.ready === profile.ready && JSON.stringify(existing?.frames) === JSON.stringify(profile.frames)) return previous;
     return existing ? previous.map(team => team.id === profile.id ? profile : team) : [...previous, profile];
   });
   useHostSession(publicSession, receiveSubmission, registerTeam);
   const gradeAnswer = (teamId: string, grade: number) => setAnswers(previous => ({ ...previous, [runId]: (previous[runId] || []).map(answer => answer.teamId === teamId ? { ...answer, grade } : answer) }));
   const revealAnswer = () => { setPublishedResults(previous => ({ ...previous, [runId]: (answers[runId] || []).map(answer => ({ ...answer })) })); setStage('reveal'); };
 
-  const addPlayer = () => setTeams(previous => [...previous, { id: crypto.randomUUID(), name: `Player ${previous.filter(team => /^Player \d+$/.test(team.name)).length + 1}` }]);
+  const addPlayer = () => setTeams(previous => [...previous, { id: crypto.randomUUID(), name: `Player ${previous.filter(team => /^Player \d+$/.test(team.name)).length + 1}`, ready: false }]);
 
   const playable = (game: LocalGame) => game.rounds.every(round => round.questions.length > 0 && round.questions.every(item => item.text.trim() && item.answer.trim()));
   const resetQuestion = () => {
@@ -127,11 +128,16 @@ export default function Host() {
     setQuestionRuns(previous => ({ ...previous, [index]: nextRun }));
     setStage('question'); setDeadline(null); setImagesRevealed(false); setVideoStartedAt(null); setRunId(nextRun);
   };
-  const startGame = (game: LocalGame) => {
+  const chooseGame = (game: LocalGame) => {
     const firstRun = crypto.randomUUID();
     setAnswers({}); setPublishedResults({}); setPoints({ [firstRun]: game.rounds[0].questions[0].points ?? 10 }); setAnswerMediaStartedAt(null); setQuestionRuns({ 0: firstRun }); setRunId(firstRun);
-    setActiveGame(game); setIndex(0); setStage('question'); setDeadline(null); setImagesRevealed(false); setVideoStartedAt(null);
-    music.switchTrack(game.rounds[0].music);
+    setActiveGame(game); setIndex(0); setStage('waiting'); setDeadline(null); setImagesRevealed(false); setVideoStartedAt(null);
+  };
+  const allReady = teams.length > 0 && teams.every(team => team.ready && team.name.trim());
+  const startGame = () => {
+    if (!allReady || !activeGame || stage !== 'waiting') return;
+    setStage('question');
+    music.switchTrack(activeGame.rounds[0].music);
   };
   const startBuzzer = () => { if (deadline === null && stage === 'question') { setQuestionDuration(duration); setDeadline(Date.now() + duration * 1000); } };
   const revealQuestion = () => { setImagesRevealed(true); startBuzzer(); };
@@ -165,7 +171,7 @@ export default function Host() {
       <div className="grid gap-5 lg:grid-cols-[1fr_320px]">
         <section className="panel p-5 sm:p-7">
           {stage !== 'lobby' && <div className="mb-6 flex items-center justify-between gap-4 border-b border-border pb-5">
-            <div className="min-w-0 flex-1">{activeGame && <p className="break-words text-lg font-semibold text-primary">{activeGame.title}</p>}{question && <p className="mt-1 text-xs text-muted-foreground">Round {question.roundIndex + 1} · {question.roundName} · Question {question.questionIndex + 1}</p>}</div>
+            <div className="min-w-0 flex-1">{activeGame && <p className="break-words text-lg font-semibold text-primary">{activeGame.title}</p>}{question && stage !== 'waiting' && <p className="mt-1 text-xs text-muted-foreground">Round {question.roundIndex + 1} · {question.roundName} · Question {question.questionIndex + 1}</p>}</div>
             <span className="rounded-full bg-primary/10 px-3 py-1.5 text-xs font-semibold capitalize text-primary">{stage}</span>
           </div>}
           {stage === 'lobby' ? loading ? <p role="status" className="py-12 text-center text-muted-foreground">Loading your games…</p> : storageError ? <p role="alert" className="py-12 text-center text-destructive">Local game storage is unavailable. Allow browser storage and refresh to retry.</p> : <div className="py-5">
@@ -174,7 +180,7 @@ export default function Host() {
               <div className="flex flex-wrap items-center justify-between gap-4">
                 <div className="min-w-0"><h3 className="break-words text-lg font-semibold text-primary">{game.title || 'Untitled game'}</h3><p className="mt-2 text-xs text-muted-foreground">{game.rounds.length} rounds · {game.rounds.reduce((total, round) => total + round.questions.length, 0)} questions</p></div>
                 <div className="flex items-center gap-2">
-                  <Button className="rounded-xl text-white" disabled={!playable(game)} onClick={() => startGame(game)}><Play className="mr-2 h-4 w-4 fill-white text-white" /> Start game</Button>
+                  <Button className="rounded-xl text-white" disabled={!playable(game)} onClick={() => chooseGame(game)}><Play className="mr-2 h-4 w-4 fill-white text-white" /> Choose game</Button>
                   <Button variant="ghost" size="icon" aria-label={`Edit ${game.title || 'untitled game'}`} title="Edit game" className="rounded-xl border-0 bg-transparent text-primary hover:bg-transparent hover:text-foreground" onClick={() => setEditor({ game })}><Pencil className="h-4 w-4" /></Button>
                 </div>
               </div>
@@ -182,7 +188,7 @@ export default function Host() {
             </article>)}
               <Button variant="outline" onClick={() => setEditor({})} className="h-12 w-full gap-3 rounded-2xl border-2 border-dotted border-primary/50 bg-transparent px-5 text-sm text-primary hover:border-primary hover:bg-primary/10 hover:text-primary"><Plus aria-hidden="true" className="h-5 w-5" /> Add new game</Button>
             </div>
-          </div> : stage === 'ended' ? <div className="py-12 text-center"><h2 className="text-3xl font-bold">Game complete</h2><p className="mt-3 text-primary">{activeGame?.title}</p><Button className="party-button mt-6" onClick={() => { setActiveGame(null); setStage('lobby'); setDeadline(null); }}>Back to games</Button></div> : question ? <div className="space-y-6">
+          </div> : stage === 'waiting' ? <div className="space-y-6"><PlayerLobby teams={scoredTeams} title={activeGame?.title} /><Button className="h-12 w-full rounded-2xl text-white" disabled={!allReady} onClick={startGame}><Play className="mr-2 h-4 w-4" />Start game</Button><p className="text-center text-sm text-muted-foreground">{allReady ? 'Everyone is ready. Time to play!' : 'At least one team must join, and every team must be ready.'}</p><Button variant="ghost" className="rounded-xl text-primary" onClick={() => { setActiveGame(null); setStage('lobby'); }}>Choose a different game</Button></div> : stage === 'ended' ? <div className="py-12 text-center"><h2 className="text-3xl font-bold">Game complete</h2><p className="mt-3 text-primary">{activeGame?.title}</p><Button className="party-button mt-6" onClick={() => { setActiveGame(null); setStage('lobby'); setDeadline(null); }}>Back to games</Button></div> : question ? <div className="space-y-6">
             <h2 className="whitespace-pre-wrap break-words text-2xl font-bold leading-tight text-white sm:text-3xl">{question.text}</h2>
             <QuestionMedia key={runId} media={question.questionMedia} imagesRevealed={imagesRevealed} videoStartedAt={videoStartedAt} />
             <div className="flex flex-wrap gap-2">
@@ -201,7 +207,7 @@ export default function Host() {
             {stage === 'closed' && <p role="status" className="text-sm text-accent">Answers locked. Move to the next question to unlock them.</p>}
             {stage === 'reveal' && <p role="status" className="text-sm text-primary">Answer revealed to connected browser tabs.</p>}
           </div> : null}
-          {question && stage !== 'lobby' && stage !== 'ended' && <div className="mt-7 flex flex-wrap gap-2 border-t border-border pt-5">
+          {question && stage !== 'lobby' && stage !== 'waiting' && stage !== 'ended' && <div className="mt-7 flex flex-wrap gap-2 border-t border-border pt-5">
             {stage === 'question' && <Button variant="secondary" className="rounded-xl" onClick={() => setStage('closed')}>Close question</Button>}
             <Button className="rounded-xl" onClick={revealAnswer}>{stage === 'reveal' ? 'Reveal updated grades' : 'Reveal answer'}</Button>
             <Button variant="outline" className="rounded-xl" disabled={index === 0} onClick={() => changeQuestion(index - 1)}><ArrowLeft className="mr-2 h-4 w-4" /> Previous</Button>
@@ -218,7 +224,7 @@ export default function Host() {
         </aside>
       </div>
     </main>
-    <DevPlayerWindows teams={teams} session={publicSession} onAdd={addPlayer} onSubmit={receiveSubmission} />
+    <DevPlayerWindows teams={teams} session={publicSession} onAdd={addPlayer} onSubmit={receiveSubmission} onProfileChange={registerTeam} />
     {editor && <NewGameDialog initialGame={editor.game} onClose={() => setEditor(null)} onSave={persistGame} onDelete={removeGame} />}
     <Dialog open={confirmEnd} onOpenChange={setConfirmEnd}><DialogContent className="rounded-2xl"><DialogHeader><DialogTitle>End this game?</DialogTitle></DialogHeader><p className="text-sm text-muted-foreground">Your saved questions and files will be kept.</p><div className="mt-4 flex justify-end gap-3"><Button variant="outline" className="rounded-xl" onClick={() => setConfirmEnd(false)}>Keep playing</Button><Button className="rounded-xl bg-destructive hover:bg-destructive/90" onClick={() => { music.switchTrack(); setStage('ended'); setDeadline(null); setConfirmEnd(false); }}>End game</Button></div></DialogContent></Dialog>
   </PartyLayout>;

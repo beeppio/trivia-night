@@ -8,6 +8,7 @@ import { Leaderboard } from '@/components/Leaderboard';
 import { PREVIEW_ROOM, PLAYER_URL, previewPlayers } from '@/lib/preview-data';
 import { SessionQuestion } from '@/components/SessionQuestion';
 import { usePlayerSession } from '@/hooks/use-local-session';
+import { PlayerLobby } from '@/components/PlayerLobby';
 
 export default function Display() {
   const { roomCode } = useParams();
@@ -31,7 +32,7 @@ export default function Display() {
         <h1 className="text-4xl font-bold">No live room connected.</h1>
         <p className="mt-4 text-muted-foreground">Phase 1 includes a display preview for sample room {PREVIEW_ROOM}.</p>
         <Button asChild className="party-button mt-6"><Link to={`/display/${PREVIEW_ROOM}`}>Open sample display</Link></Button>
-      </div> : session ? <div className="mx-auto w-full max-w-5xl"><SessionQuestion key={session.runId} session={session} /></div> : view === 'question' ? <div className="mx-auto w-full max-w-5xl">
+      </div> : session ? <div className="mx-auto w-full max-w-5xl">{session.waiting ? <PlayerLobby teams={session.rankings} title={session.title} /> : <SessionQuestion key={session.runId} session={session} />}</div> : view === 'question' ? <div className="mx-auto w-full max-w-5xl">
         <div className="mb-7 flex items-center justify-between"><p className="eyebrow">ROUND 1 · THE WARM-UP · QUESTION 1</p><span className="display-font text-5xl font-bold tabular-nums text-primary">00:30</span></div>
         <QuestionCard large /><p className="mt-7 text-center text-sm text-muted-foreground">0 of 4 sample answers submitted · Static timer preview</p>
       </div> : view === 'leaderboard' ? <div className="mx-auto w-full max-w-3xl"><Leaderboard /></div> : <section className="mx-auto w-full max-w-3xl text-center">

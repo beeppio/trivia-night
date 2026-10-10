@@ -1,7 +1,8 @@
 import { Check, CircleSlash, Circle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import type { PlayerProfile } from '@/hooks/use-local-session';
 
-export type Team = { id: string; name: string; avatarUrl?: string };
+export type Team = PlayerProfile;
 export type TeamAnswer = { teamId: string; answer: string; grade?: number };
 
 export function TeamAnswers({ teams, answers, points, rightAnswer, onGrade }: { teams: Team[]; answers: TeamAnswer[]; points: number; rightAnswer: string; onGrade: (teamId: string, grade: number) => void }) {
