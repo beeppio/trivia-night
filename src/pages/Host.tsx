@@ -46,7 +46,8 @@ export default function Host() {
   const [runId, setRunId] = useState('');
   const online = useHostRoom();
   const [localTeams, setTeams] = useState<Team[]>([]);
-  const teams = useMemo(() => [...localTeams.filter(team => !online.players.some(player => player.id === team.id)), ...online.players], [localTeams, online.players]);
+  const teams = useMemo(() => [...localTeams.filter(team => !online.allPlayers.some(player => player.id === team.id)), ...online.players], [localTeams, online.players, online.allPlayers]);
+  const historicalTeams = useMemo(() => [...localTeams.filter(team => !online.allPlayers.some(player => player.id === team.id)), ...online.allPlayers], [localTeams, online.allPlayers]);
   const [localAnswers, setAnswers] = useState<Record<string, TeamAnswer[]>>({});
   const remote = useHostSubmissions(online.room);
   const answers = useMemo(() => {
@@ -124,6 +125,12 @@ export default function Host() {
   }, [question, runId]);
   const fullPoints = points[runId] ?? question?.points ?? 10;
   const scoredTeams = useMemo(() => teams.map(team => ({ ...team, score: Object.entries(publishedResults).reduce((total, [id, submissions]) => total + (submissions.find(answer => answer.teamId === team.id)?.grade ?? 0) * (points[id] ?? 10), 0) })).sort((a, b) => b.score - a.score || a.name.localeCompare(b.name)), [teams, publishedResults, points]);
+  const offlineTeams = useMemo(() => online.allPlayers.filter(player => !player.active).map(team => ({ ...team, score: Object.entries(publishedResults).reduce((total, [id, submissions]) => total + (submissions.find(answer => answer.teamId === team.id)?.grade ?? 0) * (points[id] ?? 10), 0) })), [online.allPlayers, publishedResults, points]);
+  const removePlayer = async (id: string) => {
+    if (localTeams.some(team => team.id === id)) setTeams(previous => previous.filter(team => team.id !== id));
+    else await online.removePlayer(id);
+  };
+
   const publicSession = useMemo<PublicSession | null>(() => !activeGame || !question || stage === 'lobby' ? null : ({
     runId, title: activeGame.title, waiting: stage === 'waiting', preparing: stage === 'preparing', questionPoints: fullPoints, mediaPausedAt, answerMediaPausedAt, roundName: stage === 'waiting' ? '' : question.roundName, roundDescription: question.roundDescription?.trim() || undefined, roundIndex: question.roundIndex, questionIndex: question.questionIndex,
     text: stage === 'waiting' || stage === 'preparing' ? '' : question.text, media: stage === 'waiting' || stage === 'preparing' ? [] : question.questionMedia, imagesRevealed, videoStartedAt, answerMediaStartedAt, deadline, duration: deadline ? questionDuration : duration,
@@ -297,7 +304,7 @@ export default function Host() {
               <QuestionMedia key={`${runId}-answer`} media={question.answerMedia} imagesRevealed videoStartedAt={answerMediaStartedAt} pausedAt={answerMediaPausedAt} onToggle={toggleAnswerMedia} onReplay={() => { setAnswerMediaPausedAt(null); setAnswerMediaStartedAt(Date.now()); }} controlsDisabled={stage !== 'reveal'} />
               {question.hostNotes?.trim() && <div className="space-y-2"><h3 className="text-sm font-semibold text-primary">Host notes</h3><p className="whitespace-pre-wrap break-words text-sm leading-6">{question.hostNotes}</p></div>}
             </section>
-            <TeamAnswers teams={teams} answers={answers[runId] || []} points={fullPoints} rightAnswer={question.answer} onGrade={gradeAnswer} autoGraded={question.type === 'order'} />
+            <TeamAnswers teams={historicalTeams} answers={answers[runId] || []} points={fullPoints} rightAnswer={question.answer} onGrade={gradeAnswer} autoGraded={question.type === 'order'} />
             {stage === 'closed' && <p role="status" className="text-sm text-accent">Answers locked. Move to the next question to unlock them.</p>}
             {stage === 'reveal' && <p role="status" className="text-sm text-primary">Answer revealed to connected browser tabs.</p>}
           </div> : null}
@@ -311,7 +318,7 @@ export default function Host() {
         <aside className="space-y-5">
           <section className="panel p-5"><p className="eyebrow">ROOM CODE</p><div className="mt-3 flex items-center justify-between"><span className="display-font text-4xl font-bold tracking-[.15em] text-primary">{online.room?.code || '—'}</span><Button variant="ghost" size="icon" disabled={!online.room} aria-label="Copy room code" className="rounded-xl" onClick={copyCode}><Copy className="h-4 w-4" /></Button></div>{!online.room && <Button disabled={online.busy} className="mt-4 w-full rounded-xl" onClick={() => { void online.create(); }}>{online.busy ? 'Creating room…' : 'Create online room'}</Button>}{(online.error || publisher.error || remote.error) && <p role="alert" className="mt-3 break-words text-sm text-destructive">{online.error || publisher.error || remote.error}</p>}<p className="mt-3 text-xs leading-5 text-muted-foreground">Room-scoped online gameplay. Open TV from this dashboard to display this room.</p></section>
           <HomepageMusic />
-          <HostPlayers players={scoredTeams} showReadiness={stage === 'lobby' || stage === 'waiting'} showAnswers={stage === 'question' || stage === 'closed'} submittedTeamIds={publicSession?.submittedTeamIds} />
+          <HostPlayers players={scoredTeams} offlinePlayers={offlineTeams} onRemove={removePlayer} showReadiness={stage === 'lobby' || stage === 'waiting'} showAnswers={stage === 'question' || stage === 'closed'} submittedTeamIds={publicSession?.submittedTeamIds} />
           <Buzzer duration={duration} remaining={remaining} running={deadline !== null} countdownDuration={questionDuration} deadline={deadline} onChange={changeDuration} onStart={startBuzzer} canStart={stage === 'question' && deadline === null} />
           {activeGame && stage !== 'waiting' && stage !== 'ended' && <section className="panel space-y-4 p-5"><h2 className="font-semibold">Round music</h2><div className="flex gap-2"><Button variant="outline" className="flex-1 rounded-xl text-primary" aria-pressed={musicMuted} onClick={() => setMusicMuted(previous => !previous)}>{musicMuted ? <VolumeX className="mr-2 h-4 w-4" /> : <Volume2 className="mr-2 h-4 w-4" />}{musicMuted ? 'Unmute' : 'Mute'}</Button><Button variant="outline" size="icon" aria-label="Talk over music" title="Talk over music" aria-pressed={musicTalking} className={`rounded-xl text-primary ${musicTalking ? 'bg-primary/20 ring-1 ring-primary' : ''}`} onClick={() => setMusicTalking(previous => !previous)}><Speech className="h-5 w-5" /></Button></div><p className="text-xs text-muted-foreground">{musicTalking ? 'Talk-over on · music lowered to 20%' : 'Music plays on the TV only. Click the speaking icon to lower it while you talk.'}</p><label className="flex items-center gap-3 text-xs text-muted-foreground">Volume<input aria-label="Round music volume" type="range" min="0" max="1" step="0.05" value={musicVolume} onChange={event => setMusicVolume(Number(event.target.value))} className="w-full accent-primary" /></label></section>}
           <Button variant="outline" className="w-full rounded-xl border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive" disabled={stage === 'lobby' || stage === 'ended'} onClick={() => setConfirmEnd(true)}>End game</Button>

@@ -23,6 +23,7 @@ export default function Join() {
       <section className="panel p-6 sm:p-8">
         <h1 className="text-3xl font-bold tracking-tight">Join the game</h1>
         <p className="mt-3 text-sm leading-6 text-muted-foreground">Enter your room code, then create your team's name and animated profile. Returning? This browser remembers your team.</p>
+        {params.get('removed') === '1' && <p role="alert" className="mt-5 rounded-xl border border-destructive/40 bg-destructive/10 p-4 text-sm font-medium text-destructive">You have been removed from this room</p>}
         <form onSubmit={submit} className="mt-7 space-y-5">
           <div className="space-y-2">
             <Label htmlFor="room-code">Room code</Label>

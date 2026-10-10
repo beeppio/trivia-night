@@ -3,10 +3,10 @@ import { supabase } from '@/integrations/supabase/client';
 import { onlineSnapshot, apiError, shiftSessionClock } from '@/lib/online-game';
 import { useServerClock } from '@/hooks/use-server-clock';
 import type { OnlineRoom } from '@/hooks/use-online-room';
-import type { PublicSession } from '@/hooks/use-local-session';
+import type { PlayerProfile, PublicSession } from '@/hooks/use-local-session';
 import type { TeamAnswer } from '@/components/TeamAnswers';
 
-export function useOnlineGame(room: OnlineRoom | null) {
+export function useOnlineGame(room: OnlineRoom | null, players: PlayerProfile[]) {
   const offset = useServerClock(Boolean(room));
   const [session, setSession] = useState<PublicSession | null>(null);
   const [error, setError] = useState('');
@@ -31,7 +31,8 @@ export function useOnlineGame(room: OnlineRoom | null) {
     const retry = window.setInterval(() => { void load(); }, 5000);
     return () => { cancelled = true; clearInterval(retry); void client.removeChannel(channel); };
   }, [room?.id]);
-  return { session: session ? shiftSessionClock(session, -offset) : null, error };
+  const activeIds = new Set(players.map(player => player.id));
+  return { session: session ? { ...shiftSessionClock(session, -offset), rankings: session.rankings.filter(player => activeIds.has(player.id)) } : null, error };
 }
 export function usePublishGame(room: OnlineRoom | null, session: PublicSession) {
   const offset = useServerClock(Boolean(room));

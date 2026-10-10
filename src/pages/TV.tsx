@@ -23,7 +23,7 @@ export default function TV() {
   const code = (params.get('room') || '').toUpperCase();
   const [roomInput, setRoomInput] = useState('');
   const online = useJoinedRoom(code, true);
-  const game = useOnlineGame(online.room);
+  const game = useOnlineGame(online.room, online.players);
   useEffect(() => {
     const host = window.opener;
     const connection = new BroadcastChannel('285-trivia-tv-session');

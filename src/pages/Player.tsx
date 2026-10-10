@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Link, useParams, useSearchParams } from 'react-router-dom';
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { LogOut } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
@@ -11,16 +11,20 @@ import { supabase } from '@/integrations/supabase/client';
 import type { PlayerProfile, PublicSession } from '@/hooks/use-local-session';
 
 export default function Player() {
+  const navigate = useNavigate();
   const route = useParams();
   const [params] = useSearchParams();
   const code = (route.roomCode || params.get('room') || '').toUpperCase();
   const online = useJoinedRoom(code);
+  useEffect(() => {
+    if (online.removed) navigate('/play?removed=1', { replace: true });
+  }, [online.removed, navigate]);
   const [draft, setDraft] = useState<PlayerProfile>();
   const saveQueue = useRef(Promise.resolve());
   const mine = online.players.find(player => player.id === online.userId);
-  useEffect(() => { setDraft(mine); }, [mine?.id]);
+  useEffect(() => { if (mine) setDraft(mine); }, [mine?.id]);
   const profile = draft || mine;
-  const game = useOnlineGame(online.room);
+  const game = useOnlineGame(online.room, online.players);
   const session: PublicSession | null = game.session || (online.room ? {
     runId: '', title: 'Online lobby', waiting: true, roundName: '', roundIndex: 0, questionIndex: 0,
     text: '', media: [], imagesRevealed: false, videoStartedAt: null, answerMediaStartedAt: null,
