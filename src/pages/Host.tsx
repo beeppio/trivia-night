@@ -9,6 +9,7 @@ import { NewGameDialog } from '@/components/NewGameDialog';
 import { GameMediaList } from '@/components/GameMedia';
 import { HostPlayers } from '@/components/HostPlayers';
 import { DevPlayerWindows } from '@/components/DevPlayerWindows';
+import { HostRooms } from '@/components/HostRooms';
 import { TeamAnswers, type Team, type TeamAnswer } from '@/components/TeamAnswers';
 import { Buzzer } from '@/components/Buzzer';
 import { QuestionMedia } from '@/components/QuestionMedia';
@@ -294,6 +295,11 @@ export default function Host() {
             </article>)}
               <Button variant="outline" onClick={() => setEditor({})} className="h-12 w-full gap-3 rounded-2xl border-2 border-dotted border-primary/50 bg-transparent px-5 text-sm text-primary hover:border-primary hover:bg-primary/10 hover:text-primary"><Plus aria-hidden="true" className="h-5 w-5" /> Add new game</Button>
             </div>
+            <p className="mt-4 text-xs leading-5 text-muted-foreground">Saved games and attachments are stored in this browser. An empty library on another computer does not delete these saves.</p>
+            <HostRooms rooms={online.rooms} current={online.room} busy={online.busy} onCreate={online.create} onSelect={async id => {
+              await online.selectRoom(id);
+              setTeams([]); setAnswers({}); setPublishedResults({}); setPoints({}); setQuestionRuns({}); setRunId('');
+            }} />
           </div> : stage === 'waiting' ? <div className="space-y-6"><PlayerLobby teams={scoredTeams} /><Button className="h-12 w-full rounded-2xl text-white" disabled={!allReady} onClick={startGame}><Play className="mr-2 h-4 w-4" />Start game</Button><p className="text-center text-sm text-muted-foreground">{allReady ? 'Everyone is ready. Time to play!' : 'At least one team must join, and every team must be ready.'}</p><Button variant="ghost" className="rounded-xl text-primary" onClick={() => { setActiveGame(null); setStage('lobby'); }}>Choose a different game</Button></div> : stage === 'preparing' ? <section className="flex min-h-80 flex-col items-center justify-center gap-6 py-10 text-center"><p className="eyebrow text-primary">Round {(question?.roundIndex ?? 0) + 1}</p><h2 className="break-words text-4xl font-bold text-primary sm:text-5xl">{question?.roundName}</h2>{question?.roundDescription?.trim() && <p className="max-w-xl whitespace-pre-wrap break-words text-lg text-foreground">{question.roundDescription}</p>}<Button className="h-12 rounded-2xl px-8 text-white" onClick={startRound}>Start round</Button></section> : stage === 'ended' ? <div className="py-12 text-center"><h2 className="text-3xl font-bold">Game complete</h2><p className="mt-3 text-primary">{activeGame?.title}</p><Button className="party-button mt-6" onClick={() => { setActiveGame(null); setStage('lobby'); setDeadline(null); }}>Back to games</Button></div> : question ? <div className="space-y-6">
             <p className="w-fit rounded-full bg-primary/15 px-4 py-2 text-sm font-semibold text-primary">{fullPoints} points</p>
             <h2 className="whitespace-pre-wrap break-words text-2xl font-bold leading-tight text-white sm:text-3xl">{question.text}</h2>

@@ -42,22 +42,35 @@ export function useOnlineRoster(room: OnlineRoom | null) {
 }
 export function useHostRoom() {
   const [room, setRoom] = useState<OnlineRoom | null>(null);
+  const [rooms, setRooms] = useState<OnlineRoom[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const roster = useOnlineRoster(room);
   useEffect(() => {
-    const saved = localStorage.getItem('285-online-host-room');
-    if (!saved || !supabase) return;
+    if (!supabase) return;
     let cancelled = false;
     void ensureIdentity().then(async userId => {
-      const result = await supabase!.from('trivia_rooms').select('id,code,host_id').eq('id', saved).eq('host_id', userId).maybeSingle();
+      const result = await supabase!.from('trivia_rooms').select('id,code,host_id').eq('host_id', userId).order('created_at', { ascending: false });
       if (cancelled) return;
-      if (result.error) setError(result.error.message);
-      else if (result.data) setRoom(result.data);
-      else localStorage.removeItem('285-online-host-room');
+      if (result.error) { setError(result.error.message); return; }
+      setRooms(result.data);
+      const saved = localStorage.getItem('285-online-host-room');
+      const restored = result.data.find(item => item.id === saved) || result.data[0];
+      if (restored) {
+        localStorage.setItem('285-online-host-room', restored.id);
+        setRoom(restored);
+      }
     }).catch(error => { if (!cancelled) setError(message(error)); });
     return () => { cancelled = true; };
   }, []);
+  const selectRoom = async (id: string) => {
+    if (!supabase) return;
+    const userId = await ensureIdentity();
+    const result = await supabase.from('trivia_rooms').select('id,code,host_id').eq('id', id).eq('host_id', userId).single();
+    if (result.error) throw result.error;
+    localStorage.setItem('285-online-host-room', result.data.id);
+    setRoom(result.data);
+  };
   const create = async () => {
     setBusy(true); setError('');
     try {
@@ -65,6 +78,7 @@ export function useHostRoom() {
       const result = await supabase!.rpc('trivia_create_room');
       if (result.error) throw result.error;
       const created: OnlineRoom = result.data;
+      setRooms(previous => [created, ...previous.filter(item => item.id !== created.id)]);
       localStorage.setItem('285-online-host-room', created.id);
       setRoom(created);
     } catch (error) { setError(message(error)); }
@@ -75,7 +89,7 @@ export function useHostRoom() {
     const result = await supabase.rpc('trivia_kick_player', { target: room.id, player_id: playerId });
     if (result.error) throw result.error;
   };
-  return { room, busy, create, removePlayer, players: roster.players, allPlayers: roster.allPlayers, error: error || roster.error };
+  return { room, rooms, selectRoom, busy, create, removePlayer, players: roster.players, allPlayers: roster.allPlayers, error: error || roster.error };
 }
 export function useJoinedRoom(code: string, viewer = false) {
   const [room, setRoom] = useState<OnlineRoom | null>(null);
