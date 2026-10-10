@@ -9,7 +9,7 @@ This is an interactive interface foundation, not a working multiplayer game. Eve
 ### Routes
 
 - `/`: centered join instructions with the placeholder player address `placeholder.com/play`, sample room code `Q7K2M`, and party/Halloween theme selection. No promotional sections or hero graphic.
-- `/host`: local host walkthrough with lobby, round introduction, example questions, local reveal controls, sample leaderboard, replay, question navigation, and end confirmation.
+- `/host`: browser-local custom game editor and host walkthrough. Create or edit named rounds, questions, answers, and attachments; start each game from its card. The Players panel is empty until live joining is implemented.
 - `/join` and `/play`: validated five-character alphanumeric sample room code and nickname form. Only preview code `Q7K2M` is supported.
 - `/player/:roomCode`: mobile lobby, example multiple-choice selection, and local confirmation. Answers are not saved or scored.
 - `/display/:roomCode`: TV-friendly lobby. Add `?view=question` or `?view=leaderboard` to inspect other public layouts. Fullscreen uses the browser Fullscreen API where available.
@@ -31,6 +31,18 @@ Host, player, and display previews are independent. Refresh resets walkthrough s
 - `src/lib/preview-data.ts`: public example questions and simulated players only.
 - `src/globals.css`: centralized theme variables, Google Fonts with system fallbacks, shared Tailwind styles, and reduced-motion support.
 
+## Local game editing and files
+
+The create/edit dialog supports 1–10 rounds and 1–20 questions per round, editable round names, and question/answer text. Each question and answer can have MP4, MP3, PNG, JPG/JPEG, and PDF attachments. Images render inline, audio/video have playback controls, and PDFs open in a separate tab. Limits are 20 MB per file and 100 MB of attachments per game.
+
+Games and file blobs are saved in IndexedDB on this browser/origin, survive refresh, and are lost if browser site data is cleared. Older name-only local drafts are migrated with a blank question and can be completed through Edit. The current editor requires all question and answer text before saving. Active game progression is not persisted.
+
+Start game uses the saved custom questions in the host dashboard only. No game data, answer keys, or files are published or synchronized to player/display screens. Local storage is not backend answer-key protection or host authorization; secure online games still require Supabase.
+
+- `src/components/NewGameDialog.tsx`: rounds/questions editor and save flow.
+- `src/components/GameMedia.tsx`: upload validation, media previews, and attachment removal.
+- `src/lib/local-games.ts`: local types, IndexedDB persistence, and old-draft migration.
+
 ## Phase 2 requirements
 
 Connect a Supabase project through the app integration before implementing multiplayer. Frontend environment configuration will use `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` (or a public publishable key). Never place service-role keys, database passwords, or secret keys in frontend variables, code, or GitHub.
@@ -44,9 +56,9 @@ Implement and verify:
 5. Scoped realtime subscriptions and persisted recovery state.
 6. Multi-browser/device tests and adversarial authorization tests before claiming multiplayer or answer-key protection works.
 
-All answer keys currently shown in the host walkthrough are hard-coded examples, not secrets. The production answer system must replace this sample content; hiding it in frontend code is not security.
+The host's saved answer keys currently reside in browser-local IndexedDB, not an authorized backend. The production answer system must replace this local-only approach; hiding answers in frontend code is not security.
 
-Later phases add the game editor, synchronized timers and Web Audio sounds, grading/overrides, additional question formats/media, exports, and full deployment verification.
+Later phases add secure online game editing, synchronized timers and Web Audio sounds, grading/overrides, additional question formats, exports, and full deployment verification.
 
 ## Cloudflare Pages configuration
 
