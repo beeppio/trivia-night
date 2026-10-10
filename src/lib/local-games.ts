@@ -1,10 +1,10 @@
 export type GameMedia = { id: string; name: string; kind: 'image' | 'audio' | 'video' | 'pdf'; file: Blob };
-export type GameQuestion = { id: string; text: string; answer: string; questionMedia: GameMedia[]; answerMedia: GameMedia[] };
+export type GameQuestion = { id: string; text: string; answer: string; hostNotes?: string; questionMedia: GameMedia[]; answerMedia: GameMedia[] };
 export type GameRound = { id: string; name: string; questions: GameQuestion[] };
 export type LocalGame = { id: string; title: string; rounds: GameRound[] };
 
 export const emptyQuestion = (): GameQuestion => ({ id: crypto.randomUUID(), text: '', answer: '', questionMedia: [], answerMedia: [] });
-export const emptyRound = (index: number): GameRound => ({ id: crypto.randomUUID(), name: `Round ${index + 1}`, questions: [emptyQuestion()] });
+export const emptyRound = (): GameRound => ({ id: crypto.randomUUID(), name: '', questions: [emptyQuestion()] });
 
 function openDatabase(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
@@ -40,5 +40,5 @@ export async function saveGame(game: LocalGame): Promise<void> {
 export function readLegacyDrafts(): LocalGame[] {
   const saved: unknown = JSON.parse(localStorage.getItem('285-trivia-drafts') || '[]');
   if (!Array.isArray(saved)) return [];
-  return saved.filter(game => game && typeof game.id === 'string' && typeof game.title === 'string').map(game => ({ id: game.id, title: game.title, rounds: [emptyRound(0)] }));
+  return saved.filter(game => game && typeof game.id === 'string' && typeof game.title === 'string').map(game => ({ id: game.id, title: game.title, rounds: [emptyRound()] }));
 }

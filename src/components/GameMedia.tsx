@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { FileText, Upload, X } from 'lucide-react';
+import { FileText, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import type { GameMedia } from '@/lib/local-games';
@@ -37,8 +37,7 @@ export function MediaUpload({ id, label, media, onChange }: { id: string; label:
     onChange([...media, ...additions]);
   };
   return <div className="space-y-3">
-    <label htmlFor={id} className="inline-flex cursor-pointer items-center gap-2 rounded-xl border border-dashed border-primary/40 bg-primary/5 px-4 py-3 text-sm font-medium text-primary focus-within:ring-2 focus-within:ring-ring"><Upload className="h-4 w-4" />{label}<input id={id} type="file" accept=".mp4,.mp3,.png,.jpg,.jpeg,.pdf" multiple className="sr-only" onChange={event => { upload(event.target.files); event.target.value = ''; }} /></label>
-    <p className="text-xs text-muted-foreground">MP4, MP3, PNG, JPG, PDF · Up to 20 MB per file</p>
+    <label htmlFor={id} className="inline-flex cursor-pointer rounded-sm text-xs font-medium text-primary underline underline-offset-4 hover:text-primary/80 focus-within:outline focus-within:outline-2 focus-within:outline-offset-4 focus-within:outline-ring">Add media<input id={id} aria-label={label} type="file" accept=".mp4,.mp3,.png,.jpg,.jpeg,.pdf" multiple className="sr-only" onChange={event => { upload(event.target.files); event.target.value = ''; }} /></label>
     {media.map(item => <div key={item.id} className="rounded-xl border border-border bg-background p-3"><div className="mb-2 flex justify-end"><Button type="button" variant="ghost" size="icon" aria-label={`Remove ${item.name}`} className="h-8 w-8 rounded-lg" onClick={() => onChange(media.filter(other => other.id !== item.id))}><X className="h-4 w-4" /></Button></div><MediaItem media={item} /></div>)}
   </div>;
 }
