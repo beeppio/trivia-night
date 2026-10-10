@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowLeft, ArrowRight, Copy, Crown, Eye, Monitor, Pencil, Play, Plus, RotateCcw } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Brain, Copy, Crown, Eye, Monitor, Pencil, Play, Plus, RotateCcw } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -18,7 +18,7 @@ import { useRoundMusic } from '@/hooks/use-round-music';
 import { useHostSession, useRemainingSeconds, type PlayerSubmission, type PublicSession } from '@/hooks/use-local-session';
 import { PlayerLobby } from '@/components/PlayerLobby';
 
-type Stage = 'lobby' | 'waiting' | 'question' | 'closed' | 'reveal' | 'ended';
+type Stage = 'lobby' | 'waiting' | 'preparing' | 'question' | 'closed' | 'reveal' | 'ended';
 
 export default function Host() {
   const [games, setGames] = useState<LocalGame[]>([]);
@@ -44,10 +44,12 @@ export default function Host() {
   const [publishedResults, setPublishedResults] = useState<Record<string, TeamAnswer[]>>({});
   const [answerMediaStartedAt, setAnswerMediaStartedAt] = useState<number | null>(null);
   const [questionRuns, setQuestionRuns] = useState<Record<number, string>>({});
+  const [mediaPausedAt, setMediaPausedAt] = useState<number | null>(null);
+  const [answerMediaPausedAt, setAnswerMediaPausedAt] = useState<number | null>(null);
   const remaining = useRemainingSeconds(deadline, deadline ? questionDuration : duration);
   const music = useRoundMusic();
 
-  useEffect(() => { if (deadline && remaining === 0) setStage(previous => previous === 'question' ? 'closed' : previous); }, [deadline, remaining]);
+  useEffect(() => { if (deadline && remaining === 0 && stage === 'question') closeQuestion(); }, [deadline, remaining, stage]);
 
   useEffect(() => {
     let cancelled = false;
@@ -92,11 +94,11 @@ export default function Host() {
   const fullPoints = points[runId] ?? question?.points ?? 10;
   const scoredTeams = useMemo(() => teams.map(team => ({ ...team, score: Object.entries(publishedResults).reduce((total, [id, submissions]) => total + (submissions.find(answer => answer.teamId === team.id)?.grade ?? 0) * (points[id] ?? 10), 0) })).sort((a, b) => b.score - a.score || a.name.localeCompare(b.name)), [teams, publishedResults, points]);
   const publicSession = useMemo<PublicSession | null>(() => !activeGame || !question || stage === 'lobby' ? null : ({
-    runId, title: activeGame.title, waiting: stage === 'waiting', roundName: stage === 'waiting' ? '' : question.roundName, roundIndex: question.roundIndex, questionIndex: question.questionIndex,
-    text: stage === 'waiting' ? '' : question.text, media: stage === 'waiting' ? [] : question.questionMedia, imagesRevealed, videoStartedAt, answerMediaStartedAt, deadline, duration: deadline ? questionDuration : duration,
+    runId, title: activeGame.title, waiting: stage === 'waiting', preparing: stage === 'preparing', questionPoints: fullPoints, mediaPausedAt, answerMediaPausedAt, roundName: stage === 'waiting' ? '' : question.roundName, roundIndex: question.roundIndex, questionIndex: question.questionIndex,
+    text: stage === 'waiting' || stage === 'preparing' ? '' : question.text, media: stage === 'waiting' || stage === 'preparing' ? [] : question.questionMedia, imagesRevealed, videoStartedAt, answerMediaStartedAt, deadline, duration: deadline ? questionDuration : duration,
     open: stage === 'question' && deadline !== null, ended: stage === 'ended', rankings: scoredTeams,
     ...(stage === 'reveal' ? { answer: question.answer, answerMedia: question.answerMedia, results: (publishedResults[runId] || []).map(result => ({ ...result, points: (result.grade ?? 0) * fullPoints })) } : {}),
-  }), [activeGame, question, stage, runId, imagesRevealed, videoStartedAt, answerMediaStartedAt, deadline, questionDuration, duration, scoredTeams, publishedResults, fullPoints]);
+  }), [activeGame, question, stage, runId, imagesRevealed, videoStartedAt, mediaPausedAt, answerMediaPausedAt, answerMediaStartedAt, deadline, questionDuration, duration, scoredTeams, publishedResults, fullPoints]);
 
   function receiveSubmission(submission: PlayerSubmission) {
     if (submission.runId !== runId || stage !== 'question' || !deadline || Date.now() >= deadline) return;
@@ -114,7 +116,15 @@ export default function Host() {
   });
   useHostSession(publicSession, receiveSubmission, registerTeam);
   const gradeAnswer = (teamId: string, grade: number) => setAnswers(previous => ({ ...previous, [runId]: (previous[runId] || []).map(answer => answer.teamId === teamId ? { ...answer, grade } : answer) }));
-  const revealAnswer = () => { setPublishedResults(previous => ({ ...previous, [runId]: (answers[runId] || []).map(answer => ({ ...answer })) })); setStage('reveal'); };
+  function completeAnswers() {
+    const submitted = answers[runId] || [];
+    return [...submitted, ...teams.filter(team => !submitted.some(answer => answer.teamId === team.id)).map(team => ({ teamId: team.id, answer: 'No Answer', grade: 0 }))];
+  }
+  function closeQuestion() {
+    setAnswers(previous => ({ ...previous, [runId]: completeAnswers() }));
+    setStage('closed');
+  }
+  const revealAnswer = () => { const completed = completeAnswers(); setAnswers(previous => ({ ...previous, [runId]: completed })); setPublishedResults(previous => ({ ...previous, [runId]: completed.map(answer => ({ ...answer })) })); setStage('reveal'); };
 
   const addPlayer = () => setTeams(previous => [...previous, { id: crypto.randomUUID(), name: `Player ${previous.filter(team => /^Player \d+$/.test(team.name)).length + 1}`, ready: false }]);
 
@@ -125,23 +135,36 @@ export default function Host() {
     setPublishedResults(previous => { const updated = { ...previous }; delete updated[runId]; return updated; });
     setPoints(previous => ({ ...previous, [nextRun]: fullPoints }));
     setAnswerMediaStartedAt(null);
+    setMediaPausedAt(null);
+    setAnswerMediaPausedAt(null);
     setQuestionRuns(previous => ({ ...previous, [index]: nextRun }));
     setStage('question'); setDeadline(null); setImagesRevealed(false); setVideoStartedAt(null); setRunId(nextRun);
   };
   const chooseGame = (game: LocalGame) => {
     const firstRun = crypto.randomUUID();
     setAnswers({}); setPublishedResults({}); setPoints({ [firstRun]: game.rounds[0].questions[0].points ?? 10 }); setAnswerMediaStartedAt(null); setQuestionRuns({ 0: firstRun }); setRunId(firstRun);
-    setActiveGame(game); setIndex(0); setStage('waiting'); setDeadline(null); setImagesRevealed(false); setVideoStartedAt(null);
+    setActiveGame(game); setIndex(0); setStage('waiting'); setDeadline(null); setImagesRevealed(false); setVideoStartedAt(null); setMediaPausedAt(null); setAnswerMediaPausedAt(null);
   };
   const allReady = teams.length > 0 && teams.every(team => team.ready && team.name.trim());
   const startGame = () => {
     if (!allReady || !activeGame || stage !== 'waiting') return;
-    setStage('question');
+    setStage('preparing');
     music.switchTrack(activeGame.rounds[0].music);
   };
+  const startFirstQuestion = () => { setStage('question'); setImagesRevealed(true); setQuestionDuration(duration); setDeadline(Date.now() + duration * 1000); };
   const startBuzzer = () => { if (deadline === null && stage === 'question') { setQuestionDuration(duration); setDeadline(Date.now() + duration * 1000); } };
   const revealQuestion = () => { setImagesRevealed(true); startBuzzer(); };
-  const playVideo = () => { setVideoStartedAt(Date.now()); startBuzzer(); };
+  const playVideo = () => { setMediaPausedAt(null); setVideoStartedAt(Date.now()); startBuzzer(); };
+  const toggleQuestionMedia = () => {
+    if (!videoStartedAt) { playVideo(); return; }
+    if (mediaPausedAt !== null) { setVideoStartedAt(videoStartedAt + Date.now() - mediaPausedAt); setMediaPausedAt(null); }
+    else setMediaPausedAt(Date.now());
+  };
+  const toggleAnswerMedia = () => {
+    if (!answerMediaStartedAt) { setAnswerMediaPausedAt(null); setAnswerMediaStartedAt(Date.now()); return; }
+    if (answerMediaPausedAt !== null) { setAnswerMediaStartedAt(answerMediaStartedAt + Date.now() - answerMediaPausedAt); setAnswerMediaPausedAt(null); }
+    else setAnswerMediaPausedAt(Date.now());
+  };
   const changeQuestion = (next: number) => {
     const differentRound = questions[next].roundIndex !== question.roundIndex;
     if (differentRound) music.switchTrack(activeGame?.rounds[questions[next].roundIndex].music);
@@ -150,6 +173,8 @@ export default function Host() {
     setQuestionRuns(previous => ({ ...previous, [next]: nextRun }));
     setPoints(previous => ({ ...previous, [nextRun]: previous[nextRun] ?? questions[next].points ?? 10 }));
     setAnswerMediaStartedAt(null);
+    setMediaPausedAt(null);
+    setAnswerMediaPausedAt(null);
     setRunId(nextRun);
     setStage(publishedResults[nextRun] ? 'reveal' : answers[nextRun]?.length ? 'closed' : 'question');
     setDeadline(null); setImagesRevealed(false); setVideoStartedAt(null);
@@ -188,9 +213,10 @@ export default function Host() {
             </article>)}
               <Button variant="outline" onClick={() => setEditor({})} className="h-12 w-full gap-3 rounded-2xl border-2 border-dotted border-primary/50 bg-transparent px-5 text-sm text-primary hover:border-primary hover:bg-primary/10 hover:text-primary"><Plus aria-hidden="true" className="h-5 w-5" /> Add new game</Button>
             </div>
-          </div> : stage === 'waiting' ? <div className="space-y-6"><PlayerLobby teams={scoredTeams} title={activeGame?.title} /><Button className="h-12 w-full rounded-2xl text-white" disabled={!allReady} onClick={startGame}><Play className="mr-2 h-4 w-4" />Start game</Button><p className="text-center text-sm text-muted-foreground">{allReady ? 'Everyone is ready. Time to play!' : 'At least one team must join, and every team must be ready.'}</p><Button variant="ghost" className="rounded-xl text-primary" onClick={() => { setActiveGame(null); setStage('lobby'); }}>Choose a different game</Button></div> : stage === 'ended' ? <div className="py-12 text-center"><h2 className="text-3xl font-bold">Game complete</h2><p className="mt-3 text-primary">{activeGame?.title}</p><Button className="party-button mt-6" onClick={() => { setActiveGame(null); setStage('lobby'); setDeadline(null); }}>Back to games</Button></div> : question ? <div className="space-y-6">
+          </div> : stage === 'waiting' ? <div className="space-y-6"><PlayerLobby teams={scoredTeams} /><Button className="h-12 w-full rounded-2xl text-white" disabled={!allReady} onClick={startGame}><Play className="mr-2 h-4 w-4" />Start game</Button><p className="text-center text-sm text-muted-foreground">{allReady ? 'Everyone is ready. Time to play!' : 'At least one team must join, and every team must be ready.'}</p><Button variant="ghost" className="rounded-xl text-primary" onClick={() => { setActiveGame(null); setStage('lobby'); }}>Choose a different game</Button></div> : stage === 'preparing' ? <section className="flex min-h-80 flex-col items-center justify-center gap-6 py-10"><Brain aria-label="Question ready" className="h-28 w-28 text-primary" /><p className="rounded-full bg-primary/15 px-4 py-2 font-semibold text-primary">{fullPoints} points</p><Button className="h-12 rounded-2xl px-8 text-white" onClick={startFirstQuestion}>Start question</Button></section> : stage === 'ended' ? <div className="py-12 text-center"><h2 className="text-3xl font-bold">Game complete</h2><p className="mt-3 text-primary">{activeGame?.title}</p><Button className="party-button mt-6" onClick={() => { setActiveGame(null); setStage('lobby'); setDeadline(null); }}>Back to games</Button></div> : question ? <div className="space-y-6">
+            <p className="w-fit rounded-full bg-primary/15 px-4 py-2 text-sm font-semibold text-primary">{fullPoints} points</p>
             <h2 className="whitespace-pre-wrap break-words text-2xl font-bold leading-tight text-white sm:text-3xl">{question.text}</h2>
-            <QuestionMedia key={runId} media={question.questionMedia} imagesRevealed={imagesRevealed} videoStartedAt={videoStartedAt} />
+            <QuestionMedia key={runId} media={question.questionMedia} imagesRevealed={imagesRevealed} videoStartedAt={videoStartedAt} pausedAt={mediaPausedAt} onToggle={toggleQuestionMedia} onReplay={playVideo} />
             <div className="flex flex-wrap gap-2">
               {question.questionMedia.some(media => media.kind === 'image') && <Button className="rounded-xl text-white" disabled={imagesRevealed || stage !== 'question'} onClick={revealQuestion}>Reveal image</Button>}
               {!question.questionMedia.some(media => media.kind === 'image') && <Button className="rounded-xl text-white" disabled={deadline !== null || stage !== 'question'} onClick={revealQuestion}>Start question</Button>}
@@ -199,16 +225,16 @@ export default function Host() {
             <section className="space-y-4 border-t-2 border-dotted border-primary/60 pt-6">
               <h3 className="text-sm font-semibold text-primary">Answer</h3>
               <p className="whitespace-pre-wrap break-words font-semibold text-white">{question.answer}</p>
-              <QuestionMedia key={`${runId}-answer`} media={question.answerMedia} imagesRevealed videoStartedAt={answerMediaStartedAt} />
-              {question.answerMedia.some(media => media.kind === 'audio' || media.kind === 'video') && <Button variant="outline" className="rounded-xl text-primary" disabled={stage !== 'reveal'} onClick={() => setAnswerMediaStartedAt(Date.now())}><Play className="mr-2 h-4 w-4 fill-current" />Play answer media for players</Button>}
+              <QuestionMedia key={`${runId}-answer`} media={question.answerMedia} imagesRevealed videoStartedAt={answerMediaStartedAt} pausedAt={answerMediaPausedAt} onToggle={toggleAnswerMedia} onReplay={() => { setAnswerMediaPausedAt(null); setAnswerMediaStartedAt(Date.now()); }} controlsDisabled={stage !== 'reveal'} />
+              {question.answerMedia.some(media => media.kind === 'audio' || media.kind === 'video') && <Button variant="outline" className="rounded-xl text-primary" disabled={stage !== 'reveal'} onClick={() => { setAnswerMediaPausedAt(null); setAnswerMediaStartedAt(Date.now()); }}><Play className="mr-2 h-4 w-4 fill-current" />Play answer media for players</Button>}
               {question.hostNotes?.trim() && <div className="space-y-2"><h3 className="text-sm font-semibold text-primary">Host notes</h3><p className="whitespace-pre-wrap break-words text-sm leading-6">{question.hostNotes}</p></div>}
             </section>
             <TeamAnswers teams={teams} answers={answers[runId] || []} points={fullPoints} rightAnswer={question.answer} onGrade={gradeAnswer} />
             {stage === 'closed' && <p role="status" className="text-sm text-accent">Answers locked. Move to the next question to unlock them.</p>}
             {stage === 'reveal' && <p role="status" className="text-sm text-primary">Answer revealed to connected browser tabs.</p>}
           </div> : null}
-          {question && stage !== 'lobby' && stage !== 'waiting' && stage !== 'ended' && <div className="mt-7 flex flex-wrap gap-2 border-t border-border pt-5">
-            {stage === 'question' && <Button variant="secondary" className="rounded-xl" onClick={() => setStage('closed')}>Close question</Button>}
+          {question && stage !== 'lobby' && stage !== 'waiting' && stage !== 'preparing' && stage !== 'ended' && <div className="mt-7 flex flex-wrap gap-2 border-t border-border pt-5">
+            {stage === 'question' && <Button variant="secondary" className="rounded-xl" onClick={closeQuestion}>Close question</Button>}
             <Button className="rounded-xl" onClick={revealAnswer}>{stage === 'reveal' ? 'Reveal updated grades' : 'Reveal answer'}</Button>
             <Button variant="outline" className="rounded-xl" disabled={index === 0} onClick={() => changeQuestion(index - 1)}><ArrowLeft className="mr-2 h-4 w-4" /> Previous</Button>
             <Button variant="outline" className="rounded-xl" disabled={index === questions.length - 1} onClick={() => changeQuestion(index + 1)}>Next question <ArrowRight className="ml-2 h-4 w-4" /></Button>

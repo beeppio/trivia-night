@@ -7,6 +7,10 @@ export type PublicSession = {
   runId: string;
   title: string;
   waiting?: boolean;
+  preparing?: boolean;
+  questionPoints?: number;
+  mediaPausedAt?: number | null;
+  answerMediaPausedAt?: number | null;
   roundName: string;
   roundIndex: number;
   questionIndex: number;
