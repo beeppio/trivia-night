@@ -102,7 +102,14 @@ export default function Host() {
     ...(stage === 'reveal' ? { answer: question.answer, answerMedia: question.answerMedia, results: (publishedResults[runId] || []).map(result => ({ ...result, points: (result.grade ?? 0) * fullPoints })) } : {}),
   }), [activeGame, question, stage, runId, imagesRevealed, videoStartedAt, mediaPausedAt, answerMediaPausedAt, answerMediaStartedAt, deadline, questionDuration, duration, scoredTeams, publishedResults, fullPoints, answers]);
 
-  const openTVPreview = useTVPreview(publicSession);
+  const tvSession = useMemo<PublicSession>(() => publicSession ?? {
+    runId: '', title: '', waiting: true, roundName: '', roundIndex: 0, questionIndex: 0,
+    text: '', media: [], imagesRevealed: false, videoStartedAt: null, answerMediaStartedAt: null,
+    deadline: null, duration, open: false, ended: false,
+    rankings: scoredTeams.map(team => ({ ...team, score: 0 })),
+  }, [publicSession, duration, scoredTeams]);
+
+  const openTVPreview = useTVPreview(tvSession);
 
   function receiveSubmission(submission: PlayerSubmission) {
     if (submission.runId !== runId || stage !== 'question' || !deadline || Date.now() >= deadline) return;
