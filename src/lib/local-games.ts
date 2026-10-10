@@ -1,6 +1,6 @@
 export type GameMedia = { id: string; name: string; kind: 'image' | 'audio' | 'video' | 'pdf'; file: Blob };
 export type GameQuestion = { id: string; text: string; answer: string; points?: number; hostNotes?: string; questionMedia: GameMedia[]; answerMedia: GameMedia[] };
-export type GameRound = { id: string; name: string; music?: GameMedia; questions: GameQuestion[] };
+export type GameRound = { id: string; name: string; description?: string; music?: GameMedia; questions: GameQuestion[] };
 export type LocalGame = { id: string; title: string; rounds: GameRound[] };
 
 export const emptyQuestion = (): GameQuestion => ({ id: crypto.randomUUID(), text: '', answer: '', points: 10, questionMedia: [], answerMedia: [] });

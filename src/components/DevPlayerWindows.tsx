@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type PointerEvent } from 'react';
-import { Gamepad2, GripHorizontal, Minus, Plus } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { Gamepad2, GripHorizontal, Minus, Plus, Monitor } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { SessionQuestion } from '@/components/SessionQuestion';
 import type { Team } from '@/components/TeamAnswers';
@@ -39,6 +40,7 @@ export function DevPlayerWindows({ teams, session, onAdd, onSubmit, onProfileCha
   return <>
     {teams.map((team, index) => <div key={team.id} className={minimized.includes(team.id) ? 'hidden' : ''}><PlayerWindow team={team} session={session} onSubmit={onSubmit} onProfileChange={onProfileChange} onMinimize={() => setMinimized(previous => [...previous, team.id])} order={stack.includes(team.id) ? teams.length + stack.indexOf(team.id) : index} onFocus={() => focus(team.id)} /></div>)}
     <div className="fixed inset-x-0 bottom-0 z-[1000] flex items-center gap-2 overflow-x-auto border-t border-primary/30 bg-card px-4 py-3 shadow-xl">
+      <Button asChild variant="outline" className="shrink-0 rounded-xl border-primary/50 bg-primary/10 text-primary"><Link to="/tv" target="_blank" rel="noopener noreferrer"><Monitor className="mr-2 h-4 w-4" />TV cast preview</Link></Button>
       <Button className="shrink-0 rounded-xl text-white" onClick={onAdd}><Plus className="mr-2 h-4 w-4" />Add player</Button>
       {teams.map(team => <Button key={team.id} variant="outline" aria-pressed={!minimized.includes(team.id)} className={`shrink-0 rounded-xl ${!minimized.includes(team.id) ? 'border-primary/50 bg-primary/10 text-primary' : 'bg-transparent'}`} onClick={() => { setMinimized(previous => previous.filter(id => id !== team.id)); focus(team.id); }}><Gamepad2 className="mr-2 h-4 w-4" />{team.name}</Button>)}
       <span className="ml-auto shrink-0 pl-3 text-xs text-muted-foreground">Dev player previews</span>

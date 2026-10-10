@@ -10,11 +10,11 @@ export default function TV() {
   return <main className="flex min-h-svh flex-col bg-background px-5 py-6 text-foreground sm:px-10 lg:px-16 lg:py-10">
     <header className="flex min-h-12 flex-wrap items-center justify-between gap-x-8 gap-y-3 border-b border-primary/25 pb-5 text-lg font-semibold text-primary sm:text-2xl lg:text-3xl">
       <span className="min-w-0 break-words">{session && !session.waiting ? session.roundName : ''}</span>
-      <span className="shrink-0">{session && !session.waiting ? `Question ${session.questionIndex + 1}` : ''}</span>
+      <span className="shrink-0">{showingQuestion ? `Question ${session.questionIndex + 1} · ${session.questionPoints ?? 10} points` : ''}</span>
     </header>
 
     <section className="flex flex-1 items-center justify-center py-10 lg:py-16">
-      {showingQuestion ? <h1 className="w-full whitespace-pre-wrap break-words text-center text-[clamp(2rem,5vw,7rem)] font-bold leading-[1.15] tracking-tight text-foreground">{session.text}</h1> : <Brain aria-label="Waiting for the next question" className="h-24 w-24 text-primary sm:h-36 sm:w-36 lg:h-48 lg:w-48" />}
+      {session?.preparing ? <div className="w-full space-y-6 text-center"><h1 className="break-words text-[clamp(2rem,5vw,7rem)] font-bold leading-tight text-primary">{session.roundName}</h1>{session.roundDescription?.trim() && <p className="mx-auto max-w-5xl whitespace-pre-wrap break-words text-[clamp(1.25rem,2.5vw,3rem)] leading-relaxed">{session.roundDescription}</p>}</div> : showingQuestion ? <h1 className="w-full whitespace-pre-wrap break-words text-center text-[clamp(2rem,5vw,7rem)] font-bold leading-[1.15] tracking-tight text-foreground">{session.text}</h1> : <Brain aria-label="Waiting for the next question" className="h-24 w-24 text-primary sm:h-36 sm:w-36 lg:h-48 lg:w-48" />}
     </section>
 
     <footer className="flex flex-col gap-5 border-t border-primary/25 pt-6 lg:flex-row lg:items-end lg:gap-8">

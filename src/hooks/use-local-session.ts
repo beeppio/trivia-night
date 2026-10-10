@@ -12,6 +12,7 @@ export type PublicSession = {
   mediaPausedAt?: number | null;
   answerMediaPausedAt?: number | null;
   roundName: string;
+  roundDescription?: string;
   roundIndex: number;
   questionIndex: number;
   text: string;

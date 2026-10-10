@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from 'react';
-import { LockKeyhole, Check, Brain } from 'lucide-react';
+import { LockKeyhole, Check } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { QuestionMedia } from '@/components/QuestionMedia';
@@ -19,7 +19,7 @@ export function SessionQuestion({ session, player = false, teamId, onSubmit }: {
     setSubmitted(true);
   };
   if (session.ended) return <section className="py-12 text-center"><h1 className="text-3xl font-bold text-primary">Game complete</h1></section>;
-  if (session.preparing) return <section className="flex min-h-80 flex-col items-center justify-center gap-5 py-10"><Brain aria-label="Waiting for first question" className="h-28 w-28 text-primary" /><p className="rounded-full bg-primary/15 px-4 py-2 text-sm font-semibold text-primary">{session.questionPoints ?? 10} points</p><p role="status" className="text-sm text-muted-foreground">Waiting for the host to start the question.</p></section>;
+  if (session.preparing) return <section className="flex min-h-80 flex-col items-center justify-center gap-5 py-10 text-center"><p className="eyebrow text-primary">Round {session.roundIndex + 1}</p><h1 className="break-words text-4xl font-bold text-primary">{session.roundName}</h1>{session.roundDescription?.trim() && <p className="whitespace-pre-wrap break-words text-lg">{session.roundDescription}</p>}<p role="status" className="text-sm text-muted-foreground">Waiting for the host to start the round.</p></section>;
   return <section className="space-y-6 py-7">
     <div className="flex flex-wrap items-center justify-between gap-3"><p className="eyebrow text-primary">Round {session.roundIndex + 1} · Question {session.questionIndex + 1}</p><span className={`display-font rounded-xl border border-border px-3 py-2 text-2xl font-bold tabular-nums ${session.deadline !== null && remaining <= 10 ? 'text-red-400' : 'text-white'}`}>{formatSeconds(remaining)}</span></div>
     <p className="w-fit rounded-full bg-primary/15 px-4 py-2 text-sm font-semibold text-primary">{session.questionPoints ?? 10} points</p>
@@ -31,7 +31,7 @@ export function SessionQuestion({ session, player = false, teamId, onSubmit }: {
       <p role="status" className="text-center text-sm text-muted-foreground">{remaining === 0 || (locked && session.deadline !== null) ? 'Time is up. Wait for the next question.' : submitted ? 'Submitted to the host for review.' : session.deadline === null ? 'Wait for the host to start the question.' : ''}</p>
     </form>}
     {session.answer !== undefined && <section className="space-y-4 border-t-2 border-dotted border-primary/60 pt-6">
-      {player && <p className="whitespace-pre-wrap break-words text-sm"><span className="font-semibold text-primary">Team's Answer: </span>{result?.answer || (submitted ? answer : 'No Answer')}</p>}
+      {player && <p className="whitespace-pre-wrap break-words text-lg"><span className="font-semibold text-primary">Your Answer: </span><span className={result?.grade === 1 ? 'text-green-400' : result?.grade === 0.5 ? 'text-orange-400' : result?.grade === 0 ? 'text-red-400' : ''}>{result?.answer || (submitted ? answer : 'No Answer')}</span></p>}
       <p className="whitespace-pre-wrap break-words text-lg"><span className="font-semibold text-primary">Right Answer: </span>{session.answer}</p>
       {player && result?.grade !== undefined && <p role="status" className={`rounded-xl border px-4 py-3 font-semibold ${gradeColor}`}>{result.grade === 1 ? 'Correct' : result.grade === 0.5 ? 'Half correct' : 'Incorrect'} · +{result.points} points</p>}
       {player && result?.grade === undefined && <p className="text-sm text-muted-foreground">{result ? 'Awaiting host grading' : 'No answer submitted · 0 points'}</p>}

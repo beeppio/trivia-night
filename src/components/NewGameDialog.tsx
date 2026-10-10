@@ -60,6 +60,7 @@ export function NewGameDialog({ onClose, onSave, onDelete, initialGame }: { onCl
             <div className="grid items-start gap-5 sm:grid-cols-[2fr_1fr]">
               <div className="space-y-3">
                 <Input id={`round-${round.id}`} aria-label={`Round ${roundIndex + 1} name`} placeholder={`Round ${roundIndex + 1} name`} value={round.name} maxLength={80} onChange={event => setGame(previous => ({ ...previous, rounds: previous.rounds.map(item => item.id === round.id ? { ...item, name: event.target.value } : item) }))} className="h-12 rounded-xl bg-transparent placeholder:text-muted-foreground" />
+                <Textarea aria-label={`Round ${roundIndex + 1} category description`} placeholder="Category description (optional)" value={round.description || ''} maxLength={1000} onChange={event => setGame(previous => ({ ...previous, rounds: previous.rounds.map(item => item.id === round.id ? { ...item, description: event.target.value } : item) }))} className="min-h-20 rounded-xl bg-transparent placeholder:text-muted-foreground" />
                 <MediaUpload id={`music-${round.id}`} label={`Add music to round ${roundIndex + 1}`} musicOnly media={round.music ? [round.music] : []} onChange={media => setGame(previous => ({ ...previous, rounds: previous.rounds.map(item => item.id === round.id ? { ...item, music: media[0] } : item) }))} />
               </div>
               <CountSelect id={`count-${round.id}`} label="Number of questions" count={round.questions.length} maximum={20} onChange={count => resizeQuestions(round.id, count)} />
