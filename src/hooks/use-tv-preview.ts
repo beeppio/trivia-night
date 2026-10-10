@@ -16,11 +16,19 @@ export function useTVPreview(session: PublicSession | null) {
 
   useEffect(() => {
     const receive = (event: MessageEvent) => {
-      if (event.origin !== window.location.origin || event.source !== preview.current || event.data?.type !== '285-tv-request') return;
+      if (event.origin !== window.location.origin || event.data?.type !== '285-tv-request' || !event.source) return;
+      const source = event.source as Window;
+      if (source !== preview.current) {
+        try {
+          if (source.opener !== window || source.location.pathname !== '/tv') return;
+        } catch { return; }
+        preview.current = source;
+      }
       publish();
     };
     window.addEventListener('message', receive);
-    return () => window.removeEventListener('message', receive);
+    const heartbeat = window.setInterval(publish, 1000);
+    return () => { window.removeEventListener('message', receive); window.clearInterval(heartbeat); };
   }, []);
 
   useEffect(() => { publish(); }, [session]);

@@ -1,8 +1,10 @@
-import { Crown, Smartphone, Trophy } from 'lucide-react';
+import { Crown, Trophy } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { useEffect, useState } from 'react';
 import { formatSeconds, usePlayerSession, useRemainingSeconds, type PublicSession } from '@/hooks/use-local-session';
 import { PREVIEW_ROOM } from '@/lib/preview-data';
+import { Brand } from '@/components/PartyLayout';
+import { BackgroundPattern } from '@/components/BackgroundPattern';
 
 export default function TV() {
   const broadcastSession = usePlayerSession();
@@ -17,7 +19,7 @@ export default function TV() {
     window.addEventListener('message', receive);
     const request = () => { if (!host.closed) host.postMessage({ type: '285-tv-request' }, window.location.origin); };
     request();
-    const interval = window.setInterval(request, 2000);
+    const interval = window.setInterval(request, 1000);
     return () => { window.removeEventListener('message', receive); window.clearInterval(interval); };
   }, []);
   const session = directSession ? directSession.session : broadcastSession;
@@ -37,13 +39,14 @@ export default function TV() {
   const progress = session?.deadline ? Math.max(0, Math.min(100, (session.deadline - Date.now()) / (session.duration * 1000) * 100)) : 100;
   const winners = session?.ended && session.rankings.length ? session.rankings.filter(team => team.score === session.rankings[0].score) : [];
 
-  return <main className="flex min-h-svh flex-col bg-background px-5 py-6 text-foreground sm:px-10 lg:px-16 lg:py-10">
-    <header className="flex min-h-12 flex-wrap items-center justify-between gap-x-8 gap-y-3 border-b border-primary/25 pb-5 text-lg font-semibold text-primary sm:text-2xl lg:text-3xl">
+  return <main className="relative isolate flex min-h-svh flex-col overflow-hidden bg-background px-5 py-6 text-foreground sm:px-10 lg:px-16 lg:py-10">
+    {waiting && <BackgroundPattern />}
+    {!waiting && <header className="relative flex min-h-12 flex-wrap items-center justify-between gap-x-8 gap-y-3 border-b border-primary/25 pb-5 text-lg font-semibold text-primary sm:text-2xl lg:text-3xl">
       <span className="min-w-0 break-words">{session?.ended ? 'Final standings' : waiting ? 'Join the game' : session?.roundName}</span>
       <span className="shrink-0">{showingQuestion && session ? `Question ${session.questionIndex + 1} · ${session.questionPoints ?? 10} points` : ''}</span>
-    </header>
+    </header>}
 
-    <section className="flex flex-1 items-center justify-center py-10 lg:py-12">
+    <section className="relative flex flex-1 items-center justify-center py-10 lg:py-12">
       {session?.ended ? <div className="w-full max-w-4xl space-y-8 text-center">
         <Trophy className="mx-auto h-12 w-12 text-yellow-300 sm:h-16 sm:w-16" />
         <div><p className="mb-3 text-lg font-semibold text-primary">{winners.length > 1 ? 'Joint winners' : 'Winner'}</p><h1 className="break-words text-[clamp(2rem,4vw,5rem)] font-bold text-yellow-300">{winners.map(team => team.name).join(' & ') || 'Game complete'}</h1></div>
@@ -56,13 +59,17 @@ export default function TV() {
           </li>;
         })}</ol>
       </div> : session?.preparing ? <div className="w-full space-y-6 text-center"><h1 className="break-words text-[clamp(2rem,5vw,7rem)] font-bold leading-tight text-primary">{session.roundName}</h1>{session.roundDescription?.trim() && <p className="mx-auto max-w-5xl whitespace-pre-wrap break-words text-[clamp(1.25rem,2.5vw,3rem)] leading-relaxed">{session.roundDescription}</p>}</div> : showingQuestion ? <div className="w-full text-center">{revealed && <p className="mb-5 text-[clamp(1rem,2vw,2rem)] font-semibold text-primary">Correct Answer</p>}<h1 role={expired && !revealed ? 'status' : undefined} className={`whitespace-pre-wrap break-words text-[clamp(2rem,5vw,7rem)] font-bold leading-[1.15] tracking-tight ${expired && !revealed ? 'text-red-400' : 'text-foreground'}`}>{revealed ? session?.answer : expired ? 'Time is up!' : session?.text}</h1></div> : <div className="w-full max-w-5xl space-y-8 text-center">
-        <Smartphone aria-hidden="true" className="mx-auto h-16 w-16 text-primary sm:h-20 sm:w-20" />
-        <div className="space-y-4"><p className="text-lg font-semibold sm:text-2xl">Open this link on your phone</p><a href={joinUrl} className="block break-all rounded-3xl border border-primary/40 bg-primary/10 px-5 py-6 text-[clamp(1.25rem,3vw,3rem)] font-bold text-primary underline-offset-4 hover:underline">{joinUrl}</a><p className="text-lg text-foreground sm:text-2xl">Room code <span className="ml-2 font-bold tracking-[.2em] text-primary">{PREVIEW_ROOM}</span></p></div>
+        <Brand large />
+        <h1 className="text-lg font-medium leading-tight tracking-tight text-muted-foreground sm:text-2xl">Welcome to 285's Trivia Night</h1>
+        <h2 className="mt-8 text-4xl font-bold tracking-tight sm:text-6xl">Join the game</h2>
+        <p className="mt-6 text-base leading-7 text-muted-foreground sm:text-lg">On your phone, open this link to join the room</p>
+        <a href={joinUrl} className="display-font mt-2 block break-all text-xl font-semibold text-primary underline-offset-4 hover:underline sm:text-3xl">{joinUrl}</a>
+        <div className="mx-auto mt-8 w-fit rounded-2xl border border-primary/30 bg-card px-7 py-6 sm:px-12 sm:py-8"><p className="eyebrow">Room code</p><p className="display-font mt-3 pl-[.15em] text-5xl font-bold tracking-[.15em] text-primary sm:text-7xl" aria-label={`Room code ${PREVIEW_ROOM.split('').join(' ')}`}>{PREVIEW_ROOM}</p></div>
         <p role="status" aria-label="Waiting for host to start game" className="text-[clamp(1.25rem,2.5vw,2.5rem)] font-semibold">Waiting for host to start game<span aria-hidden="true" className="inline-block w-[1.5em] text-left">{'.'.repeat(dotCount)}</span></p>
       </div>}
     </section>
 
-    {!session?.ended && <footer className="space-y-5 border-t border-primary/25 pt-6">
+    {!session?.ended && <footer className="relative space-y-5 border-t border-primary/25 pt-6">
       {showingQuestion && <div className="relative h-14 overflow-hidden rounded-2xl border border-violet-400/40 bg-violet-950 sm:h-16">
         <div role="progressbar" aria-label="Question time remaining" aria-valuemin={0} aria-valuemax={session?.duration ?? 30} aria-valuenow={remaining} style={{ width: `${progress}%` }} className="absolute inset-y-0 left-0 rounded-xl bg-violet-600 transition-[width] duration-100 ease-linear motion-reduce:transition-none" />
         <div role="timer" className="relative flex h-full items-center justify-between px-5 text-white"><span className="text-sm font-semibold sm:text-lg">{expired ? 'Time is up!' : revealed ? 'Answer revealed' : 'Time remaining'}</span><span className="text-3xl font-bold tabular-nums sm:text-4xl">{formatSeconds(remaining).replace(/^0(?=\d:)/, '')}</span></div>
