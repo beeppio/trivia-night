@@ -1,21 +1,37 @@
+import { useEffect, useRef, useState } from 'react';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
 import { LogOut } from 'lucide-react';
+import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Brand } from '@/components/PartyLayout';
 import { PlayerGameView } from '@/components/PlayerGameView';
-import { PREVIEW_ROOM } from '@/lib/preview-data';
-import { sendPlayerSubmission, usePlayerSession } from '@/hooks/use-local-session';
-import { useTeamProfile } from '@/hooks/use-team-profile';
+import { useJoinedRoom } from '@/hooks/use-online-room';
+import type { PlayerProfile, PublicSession } from '@/hooks/use-local-session';
 
 export default function Player() {
   const route = useParams();
   const [params] = useSearchParams();
-  const roomCode = route.roomCode || params.get('room');
-  const { profile, updateProfile, error } = useTeamProfile(roomCode || PREVIEW_ROOM);
-  const session = usePlayerSession(roomCode === PREVIEW_ROOM ? profile : undefined);
-  if (roomCode !== PREVIEW_ROOM) return <div className="mx-auto flex min-h-screen max-w-md flex-col justify-center gap-5 p-6"><Brand /><h1 className="text-3xl font-bold">Let's get you to the lobby.</h1><p className="text-muted-foreground">Enter room {PREVIEW_ROOM} in this browser.</p><Button asChild className="party-button"><Link to="/play">Go to join screen</Link></Button></div>;
+  const code = (route.roomCode || params.get('room') || '').toUpperCase();
+  const online = useJoinedRoom(code);
+  const [draft, setDraft] = useState<PlayerProfile>();
+  const saveQueue = useRef(Promise.resolve());
+  const mine = online.players.find(player => player.id === online.userId);
+  useEffect(() => { setDraft(mine); }, [mine?.id]);
+  const profile = draft || mine;
+  const session: PublicSession | null = online.room ? {
+    runId: '', title: 'Online lobby', waiting: true, roundName: '', roundIndex: 0, questionIndex: 0,
+    text: '', media: [], imagesRevealed: false, videoStartedAt: null, answerMediaStartedAt: null,
+    deadline: null, duration: 30, open: false, ended: false,
+    rankings: online.players.map(player => ({ ...player, score: 0 })),
+  } : null;
+  const update = (next: PlayerProfile) => {
+    setDraft(next);
+    saveQueue.current = saveQueue.current.then(() => online.updateProfile(next)).catch(error => {
+      toast.error(error instanceof Error ? error.message : 'Unable to save your team profile.');
+    });
+  };
   return <div className="mx-auto min-h-screen max-w-lg px-5 pb-8">
-    <header className="flex items-center justify-between border-b border-border py-5"><Brand /><Button asChild variant="ghost" size="icon" className="rounded-xl"><Link to="/play" aria-label="Leave lobby"><LogOut className="h-4 w-4" /></Link></Button></header>
-    {error ? <p role="alert" className="py-8 text-destructive">Allow browser storage to save your team identity and rejoin safely.</p> : !profile ? <p role="status" className="py-8 text-center text-primary">Restoring your team…</p> : <PlayerGameView profile={profile} session={session} onProfileChange={updateProfile} onSubmit={answer => { if (session) sendPlayerSubmission({ runId: session.runId, teamId: profile.id, name: profile.name, answer }); }} />}
+    <header className="flex items-center justify-between border-b border-border py-5"><Brand /><Button asChild variant="ghost" size="icon" className="rounded-xl"><Link to="/play" aria-label="Return to join screen"><LogOut className="h-4 w-4" /></Link></Button></header>
+    {online.error ? <section className="space-y-4 py-8"><p role="alert" className="break-words text-destructive">{online.error}</p><Button asChild className="rounded-xl"><Link to="/play">Try another room code</Link></Button></section> : !online.room || !profile ? <p role="status" className="py-8 text-center text-primary">Joining room…</p> : <><p role="status" className="py-4 text-center text-xs leading-5 text-muted-foreground">Connected to room {online.room.code}. Your host can see your team. Online questions and answers are not enabled yet.</p><PlayerGameView key={online.room.id} profile={profile} session={session} onProfileChange={update} onSubmit={() => { toast.info('Online gameplay is not enabled yet.'); }} /></>}
   </div>;
 }

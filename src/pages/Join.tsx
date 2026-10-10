@@ -4,8 +4,7 @@ import { ArrowLeft, ArrowRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { PartyLayout, PreviewNotice } from '@/components/PartyLayout';
-import { PREVIEW_ROOM } from '@/lib/preview-data';
+import { PartyLayout } from '@/components/PartyLayout';
 import Player from '@/pages/Player';
 
 export default function Join() {
@@ -15,7 +14,6 @@ export default function Join() {
   const [error, setError] = useState('');
   const submit = (event: FormEvent) => {
     event.preventDefault();
-    if (code !== PREVIEW_ROOM) { setError(`Live rooms are not connected yet. Use ${PREVIEW_ROOM} in the same browser as your host.`); return; }
     navigate(`/play?room=${encodeURIComponent(code)}`);
   };
   if (params.has('room')) return <Player />;
@@ -29,13 +27,13 @@ export default function Join() {
           <div className="space-y-2">
             <Label htmlFor="room-code">Room code</Label>
             <Input id="room-code" placeholder="A1B2C" autoCapitalize="characters" spellCheck={false} autoComplete="off" pattern="[A-Z0-9]{5}" maxLength={5} minLength={5} value={code} onChange={e => { setCode(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 5)); setError(''); }} required className="h-14 rounded-xl bg-background text-center font-mono text-2xl tracking-[.35em]" aria-describedby="room-hint" />
-            <p id="room-hint" className="text-xs text-muted-foreground">5 letters and numbers. Preview code: <button type="button" className="font-semibold text-primary underline underline-offset-4" onClick={() => setCode(PREVIEW_ROOM)}>{PREVIEW_ROOM}</button></p>
+            <p id="room-hint" className="text-xs text-muted-foreground">Enter the five-character code shown on your host's dashboard.</p>
           </div>
           {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
           <Button type="submit" className="party-button w-full">Enter room <ArrowRight className="ml-2 h-4 w-4" /></Button>
         </form>
       </section>
-      <PreviewNotice className="mt-5" />
+      <p className="mt-5 text-center text-xs leading-5 text-muted-foreground">Online room joining is enabled. Online gameplay synchronization is the next phase.</p>
     </main>
   </PartyLayout>;
 }

@@ -17,6 +17,7 @@ import { PREVIEW_ROOM } from '@/lib/preview-data';
 import { loadGames, readLegacyDrafts, saveGame, deleteGame, type LocalGame } from '@/lib/local-games';
 import { useHostSession, useRemainingSeconds, type PlayerSubmission, type PublicSession } from '@/hooks/use-local-session';
 import { useTVPreview } from '@/hooks/use-tv-preview';
+import { useHostRoom } from '@/hooks/use-online-room';
 import { PlayerLobby } from '@/components/PlayerLobby';
 
 type Stage = 'lobby' | 'waiting' | 'preparing' | 'question' | 'closed' | 'reveal' | 'ended';
@@ -39,7 +40,9 @@ export default function Host() {
   const [imagesRevealed, setImagesRevealed] = useState(false);
   const [videoStartedAt, setVideoStartedAt] = useState<number | null>(null);
   const [runId, setRunId] = useState('');
-  const [teams, setTeams] = useState<Team[]>([]);
+  const online = useHostRoom();
+  const [localTeams, setTeams] = useState<Team[]>([]);
+  const teams = useMemo(() => [...localTeams.filter(team => !online.players.some(player => player.id === team.id)), ...online.players], [localTeams, online.players]);
   const [answers, setAnswers] = useState<Record<string, TeamAnswer[]>>({});
   const [points, setPoints] = useState<Record<string, number>>({});
   const [publishedResults, setPublishedResults] = useState<Record<string, TeamAnswer[]>>({});
@@ -221,8 +224,9 @@ export default function Host() {
     setImagesRevealed(!showRoundIntro); setVideoStartedAt(null);
   };
   const copyCode = async () => {
-    try { await navigator.clipboard.writeText(PREVIEW_ROOM); toast.success('Preview room code copied'); }
-    catch { toast.error(`Clipboard unavailable. The preview code is ${PREVIEW_ROOM}.`); }
+    if (!online.room) return;
+    try { await navigator.clipboard.writeText(online.room.code); toast.success('Room code copied'); }
+    catch { toast.error(`Clipboard unavailable. The room code is ${online.room.code}.`); }
   };
 
   return <PartyLayout>
@@ -230,9 +234,9 @@ export default function Host() {
       <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
         <h1 className="flex items-center gap-3 text-2xl font-semibold text-primary sm:text-3xl"><Crown aria-hidden="true" className="h-7 w-7 shrink-0 sm:h-8 sm:w-8" />Host Dashboard</h1>
         <div className="flex flex-wrap gap-2">
-          <Button asChild variant="outline" className="rounded-xl"><Link to={`/play?room=${PREVIEW_ROOM}`} target="_blank" rel="noopener noreferrer"><Eye className="mr-2 h-4 w-4" /> Player preview</Link></Button>
+          <Button asChild variant="outline" className="rounded-xl" disabled={!online.room}><Link to={online.room ? `/play?room=${online.room.code}` : '/play'} target="_blank" rel="noopener noreferrer"><Eye className="mr-2 h-4 w-4" /> Player preview</Link></Button>
           <Button variant="outline" className="rounded-xl border-primary/40 bg-primary/10 text-primary" onClick={openTVPreview}><Monitor className="mr-2 h-4 w-4" /> Dev TV preview</Button>
-          <Button asChild className="rounded-xl"><Link to="/tv" target="_blank" rel="noopener noreferrer"><Monitor className="mr-2 h-4 w-4" /> Open TV</Link></Button>
+          <Button asChild className="rounded-xl"><Link to={online.room ? `/tv?room=${online.room.code}` : '/tv'} target="_blank" rel="noopener noreferrer"><Monitor className="mr-2 h-4 w-4" /> Open TV</Link></Button>
         </div>
       </div>
       <div className="grid gap-5 lg:grid-cols-[1fr_320px]">
@@ -277,7 +281,7 @@ export default function Host() {
           </div>}
         </section>
         <aside className="space-y-5">
-          <section className="panel p-5"><p className="eyebrow">ROOM CODE</p><div className="mt-3 flex items-center justify-between"><span className="display-font text-4xl font-bold tracking-[.15em] text-primary">{PREVIEW_ROOM}</span><Button variant="ghost" size="icon" aria-label="Copy room code" className="rounded-xl" onClick={copyCode}><Copy className="h-4 w-4" /></Button></div></section>
+          <section className="panel p-5"><p className="eyebrow">ROOM CODE</p><div className="mt-3 flex items-center justify-between"><span className="display-font text-4xl font-bold tracking-[.15em] text-primary">{online.room?.code || '—'}</span><Button variant="ghost" size="icon" disabled={!online.room} aria-label="Copy room code" className="rounded-xl" onClick={copyCode}><Copy className="h-4 w-4" /></Button></div>{!online.room && <Button disabled={online.busy} className="mt-4 w-full rounded-xl" onClick={() => { void online.create(); }}>{online.busy ? 'Creating room…' : 'Create online room'}</Button>}{online.error && <p role="alert" className="mt-3 break-words text-sm text-destructive">{online.error}</p>}<p className="mt-3 text-xs leading-5 text-muted-foreground">Online lobby enabled. Questions, answers and TV gameplay are still local-only in this phase.</p></section>
           <HomepageMusic />
           <HostPlayers players={scoredTeams} showReadiness={stage === 'lobby' || stage === 'waiting'} showAnswers={stage === 'question' || stage === 'closed'} submittedTeamIds={publicSession?.submittedTeamIds} />
           <Buzzer duration={duration} remaining={remaining} running={deadline !== null} countdownDuration={questionDuration} deadline={deadline} onChange={changeDuration} onStart={startBuzzer} canStart={stage === 'question' && deadline === null} />
@@ -286,7 +290,7 @@ export default function Host() {
         </aside>
       </div>
     </main>
-    <DevPlayerWindows teams={teams} session={publicSession} onAdd={addPlayer} onSubmit={receiveSubmission} onProfileChange={registerTeam} onTVPreview={openTVPreview} />
+    <DevPlayerWindows teams={localTeams} session={publicSession} onAdd={addPlayer} onSubmit={receiveSubmission} onProfileChange={registerTeam} onTVPreview={openTVPreview} />
     {editor && <NewGameDialog initialGame={editor.game} onClose={() => setEditor(null)} onSave={persistGame} onDelete={removeGame} />}
     <Dialog open={confirmEnd} onOpenChange={setConfirmEnd}><DialogContent className="rounded-2xl"><DialogHeader><DialogTitle>End this game?</DialogTitle></DialogHeader><p className="text-sm text-muted-foreground">Your saved questions and files will be kept.</p><div className="mt-4 flex justify-end gap-3"><Button variant="outline" className="rounded-xl" onClick={() => setConfirmEnd(false)}>Keep playing</Button><Button className="rounded-xl bg-destructive hover:bg-destructive/90" onClick={() => { setMusicStartedAt(null); setStage('ended'); setDeadline(null); setConfirmEnd(false); }}>End game</Button></div></DialogContent></Dialog>
   </PartyLayout>;
