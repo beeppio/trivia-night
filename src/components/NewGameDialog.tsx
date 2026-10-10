@@ -65,7 +65,7 @@ export function NewGameDialog({ onClose, onSave, onDelete, initialGame }: { onCl
               <CountSelect id={`count-${round.id}`} label="Number of questions" count={round.questions.length} maximum={20} onChange={count => resizeQuestions(round.id, count)} />
             </div>
             {round.questions.map((question, questionIndex) => <section key={question.id} className="space-y-5 border-t-2 border-dotted border-primary/40 pt-6">
-              <h3 className="font-semibold text-primary">Question {questionIndex + 1}</h3>
+              <div className="flex flex-wrap items-center justify-between gap-3"><h3 className="font-semibold text-primary">Question {questionIndex + 1}</h3><label className="flex items-center gap-3 text-sm text-muted-foreground">Points<Input aria-label={`Points for question ${questionIndex + 1} in round ${roundIndex + 1}`} type="number" min="1" max="1000" step="1" value={question.points ?? 10} onChange={event => { const value = Number(event.target.value); if (Number.isInteger(value) && value >= 1 && value <= 1000) updateQuestion(round.id, question.id, { points: value }); }} className="h-10 w-24 rounded-xl bg-transparent text-center" /></label></div>
               <div className="grid gap-6 md:grid-cols-2">
                 <div className="space-y-3">
                   <Textarea id={`question-${question.id}`} aria-label={`Round ${roundIndex + 1}, question ${questionIndex + 1}`} value={question.text} onChange={event => updateQuestion(round.id, question.id, { text: event.target.value })} placeholder="Question" maxLength={4000} className="min-h-28 rounded-xl bg-transparent placeholder:text-muted-foreground" />

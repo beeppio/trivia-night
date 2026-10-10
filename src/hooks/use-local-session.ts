@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import type { GameMedia } from '@/lib/local-games';
 
+export type PlayerProfile = { id: string; name: string; avatarUrl?: string };
+export type PublicResult = { teamId: string; answer: string; grade?: number; points: number };
 export type PublicSession = {
   runId: string;
   title: string;
@@ -11,27 +13,39 @@ export type PublicSession = {
   media: GameMedia[];
   imagesRevealed: boolean;
   videoStartedAt: number | null;
+  answerMediaStartedAt: number | null;
   deadline: number | null;
   duration: number;
   open: boolean;
   ended: boolean;
+  rankings: (PlayerProfile & { score: number })[];
   answer?: string;
   answerMedia?: GameMedia[];
+  results?: PublicResult[];
 };
 export type PlayerSubmission = { runId: string; teamId: string; name: string; answer: string };
 const channelName = '285-trivia-local-session';
 
-export function useHostSession(session: PublicSession | null, onSubmit?: (submission: PlayerSubmission) => void) {
+function validProfile(profile: PlayerProfile) {
+  return profile && typeof profile.id === 'string' && profile.id.length <= 100 && typeof profile.name === 'string' && profile.name.length <= 80 && (!profile.avatarUrl || (typeof profile.avatarUrl === 'string' && profile.avatarUrl.length < 3000000 && /^data:image\/(png|jpeg|webp);base64,/.test(profile.avatarUrl)));
+}
+
+export function useHostSession(session: PublicSession | null, onSubmit?: (submission: PlayerSubmission) => void, onJoin?: (profile: PlayerProfile) => void) {
   const channel = useRef<BroadcastChannel | null>(null);
   const latest = useRef(session);
   const submitHandler = useRef(onSubmit);
+  const joinHandler = useRef(onJoin);
   submitHandler.current = onSubmit;
+  joinHandler.current = onJoin;
   latest.current = session;
   useEffect(() => {
     const connection = new BroadcastChannel(channelName);
     channel.current = connection;
     connection.onmessage = event => {
-      if (event.data?.type === 'request') connection.postMessage({ type: 'session', session: latest.current });
+      if (event.data?.type === 'request') {
+        if (validProfile(event.data.profile)) joinHandler.current?.(event.data.profile);
+        connection.postMessage({ type: 'session', session: latest.current });
+      }
       if (event.data?.type === 'submit') {
         const submission = event.data.submission;
         const active = latest.current;
@@ -43,16 +57,21 @@ export function useHostSession(session: PublicSession | null, onSubmit?: (submis
   useEffect(() => { channel.current?.postMessage({ type: 'session', session }); }, [session]);
 }
 
-export function usePlayerSession() {
+export function usePlayerSession(profile?: PlayerProfile) {
   const [session, setSession] = useState<PublicSession | null>(null);
+  const id = profile?.id;
+  const name = profile?.name;
+  const avatarUrl = profile?.avatarUrl;
   useEffect(() => {
     const connection = new BroadcastChannel(channelName);
     connection.onmessage = event => {
       if (event.data?.type === 'session') setSession(event.data.session);
     };
-    connection.postMessage({ type: 'request' });
-    return () => connection.close();
-  }, []);
+    const request = () => connection.postMessage({ type: 'request', profile: id && name ? { id, name, avatarUrl } : undefined });
+    request();
+    const interval = window.setInterval(request, 5000);
+    return () => { window.clearInterval(interval); connection.close(); };
+  }, [id, name, avatarUrl]);
   return session;
 }
 

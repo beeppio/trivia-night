@@ -40,6 +40,8 @@ export default function Host() {
   const [teams, setTeams] = useState<Team[]>([]);
   const [answers, setAnswers] = useState<Record<string, TeamAnswer[]>>({});
   const [points, setPoints] = useState<Record<string, number>>({});
+  const [publishedResults, setPublishedResults] = useState<Record<string, TeamAnswer[]>>({});
+  const [answerMediaStartedAt, setAnswerMediaStartedAt] = useState<number | null>(null);
   const [questionRuns, setQuestionRuns] = useState<Record<number, string>>({});
   const remaining = useRemainingSeconds(deadline, deadline ? questionDuration : duration);
   const music = useRoundMusic();
@@ -86,12 +88,14 @@ export default function Host() {
 
   const questions = useMemo(() => activeGame?.rounds.flatMap((round, roundIndex) => round.questions.map((question, questionIndex) => ({ ...question, roundName: round.name, roundIndex, questionIndex }))) || [], [activeGame]);
   const question = questions[index];
+  const fullPoints = points[runId] ?? question?.points ?? 10;
+  const scoredTeams = useMemo(() => teams.map(team => ({ ...team, score: Object.entries(publishedResults).reduce((total, [id, submissions]) => total + (submissions.find(answer => answer.teamId === team.id)?.grade ?? 0) * (points[id] ?? 10), 0) })).sort((a, b) => b.score - a.score || a.name.localeCompare(b.name)), [teams, publishedResults, points]);
   const publicSession = useMemo<PublicSession | null>(() => !activeGame || !question || stage === 'lobby' ? null : ({
     runId, title: activeGame.title, roundName: question.roundName, roundIndex: question.roundIndex, questionIndex: question.questionIndex,
-    text: question.text, media: question.questionMedia, imagesRevealed, videoStartedAt, deadline, duration: deadline ? questionDuration : duration,
-    open: stage === 'question' && deadline !== null, ended: stage === 'ended',
-    ...(stage === 'reveal' ? { answer: question.answer, answerMedia: question.answerMedia } : {}),
-  }), [activeGame, question, stage, runId, imagesRevealed, videoStartedAt, deadline, questionDuration, duration]);
+    text: question.text, media: question.questionMedia, imagesRevealed, videoStartedAt, answerMediaStartedAt, deadline, duration: deadline ? questionDuration : duration,
+    open: stage === 'question' && deadline !== null, ended: stage === 'ended', rankings: scoredTeams,
+    ...(stage === 'reveal' ? { answer: question.answer, answerMedia: question.answerMedia, results: (publishedResults[runId] || []).map(result => ({ ...result, points: (result.grade ?? 0) * fullPoints })) } : {}),
+  }), [activeGame, question, stage, runId, imagesRevealed, videoStartedAt, answerMediaStartedAt, deadline, questionDuration, duration, scoredTeams, publishedResults, fullPoints]);
 
   function receiveSubmission(submission: PlayerSubmission) {
     if (submission.runId !== runId || stage !== 'question' || !deadline || Date.now() >= deadline) return;
@@ -102,11 +106,14 @@ export default function Host() {
       return { ...previous, [runId]: [...existing, { teamId: submission.teamId, answer: submission.answer }] };
     });
   }
-  useHostSession(publicSession, receiveSubmission);
-
-  const fullPoints = points[runId] ?? 10;
+  const registerTeam = (profile: Team) => setTeams(previous => {
+    const existing = previous.find(team => team.id === profile.id);
+    if (existing?.name === profile.name && existing?.avatarUrl === profile.avatarUrl) return previous;
+    return existing ? previous.map(team => team.id === profile.id ? profile : team) : [...previous, profile];
+  });
+  useHostSession(publicSession, receiveSubmission, registerTeam);
   const gradeAnswer = (teamId: string, grade: number) => setAnswers(previous => ({ ...previous, [runId]: (previous[runId] || []).map(answer => answer.teamId === teamId ? { ...answer, grade } : answer) }));
-  const scoredTeams = teams.map(team => ({ ...team, score: Object.entries(answers).reduce((total, [id, submissions]) => total + (submissions.find(answer => answer.teamId === team.id)?.grade ?? 0) * (points[id] ?? 10), 0) }));
+  const revealAnswer = () => { setPublishedResults(previous => ({ ...previous, [runId]: (answers[runId] || []).map(answer => ({ ...answer })) })); setStage('reveal'); };
 
   const addPlayer = () => setTeams(previous => [...previous, { id: crypto.randomUUID(), name: `Player ${previous.filter(team => /^Player \d+$/.test(team.name)).length + 1}` }]);
 
@@ -114,12 +121,15 @@ export default function Host() {
   const resetQuestion = () => {
     const nextRun = crypto.randomUUID();
     setAnswers(previous => { const updated = { ...previous }; delete updated[runId]; return updated; });
+    setPublishedResults(previous => { const updated = { ...previous }; delete updated[runId]; return updated; });
+    setPoints(previous => ({ ...previous, [nextRun]: fullPoints }));
+    setAnswerMediaStartedAt(null);
     setQuestionRuns(previous => ({ ...previous, [index]: nextRun }));
     setStage('question'); setDeadline(null); setImagesRevealed(false); setVideoStartedAt(null); setRunId(nextRun);
   };
   const startGame = (game: LocalGame) => {
     const firstRun = crypto.randomUUID();
-    setAnswers({}); setPoints({}); setQuestionRuns({ 0: firstRun }); setRunId(firstRun);
+    setAnswers({}); setPublishedResults({}); setPoints({ [firstRun]: game.rounds[0].questions[0].points ?? 10 }); setAnswerMediaStartedAt(null); setQuestionRuns({ 0: firstRun }); setRunId(firstRun);
     setActiveGame(game); setIndex(0); setStage('question'); setDeadline(null); setImagesRevealed(false); setVideoStartedAt(null);
     music.switchTrack(game.rounds[0].music);
   };
@@ -132,8 +142,10 @@ export default function Host() {
     setIndex(next);
     const nextRun = questionRuns[next] || crypto.randomUUID();
     setQuestionRuns(previous => ({ ...previous, [next]: nextRun }));
+    setPoints(previous => ({ ...previous, [nextRun]: previous[nextRun] ?? questions[next].points ?? 10 }));
+    setAnswerMediaStartedAt(null);
     setRunId(nextRun);
-    setStage(answers[nextRun]?.length ? 'closed' : 'question');
+    setStage(publishedResults[nextRun] ? 'reveal' : answers[nextRun]?.length ? 'closed' : 'question');
     setDeadline(null); setImagesRevealed(false); setVideoStartedAt(null);
   };
   const copyCode = async () => {
@@ -176,21 +188,22 @@ export default function Host() {
             <div className="flex flex-wrap gap-2">
               {question.questionMedia.some(media => media.kind === 'image') && <Button className="rounded-xl text-white" disabled={imagesRevealed || stage !== 'question'} onClick={revealQuestion}>Reveal image</Button>}
               {!question.questionMedia.some(media => media.kind === 'image') && <Button className="rounded-xl text-white" disabled={deadline !== null || stage !== 'question'} onClick={revealQuestion}>Start question</Button>}
-              {question.questionMedia.some(media => media.kind === 'video') && <Button variant="outline" className="rounded-xl text-primary" disabled={stage !== 'question'} onClick={playVideo}><Play className="mr-2 h-4 w-4 fill-current" />{videoStartedAt ? 'Restart video for players' : 'Play video for players'}</Button>}
+              {question.questionMedia.some(media => media.kind === 'video' || media.kind === 'audio') && <Button variant="outline" className="rounded-xl text-primary" disabled={stage !== 'question'} onClick={playVideo}><Play className="mr-2 h-4 w-4 fill-current" />{videoStartedAt ? 'Restart media for players' : 'Play media for players'}</Button>}
             </div>
             <section className="space-y-4 border-t-2 border-dotted border-primary/60 pt-6">
               <h3 className="text-sm font-semibold text-primary">Answer</h3>
               <p className="whitespace-pre-wrap break-words font-semibold text-white">{question.answer}</p>
-              <GameMediaList media={question.answerMedia} />
+              <QuestionMedia key={`${runId}-answer`} media={question.answerMedia} imagesRevealed videoStartedAt={answerMediaStartedAt} />
+              {question.answerMedia.some(media => media.kind === 'audio' || media.kind === 'video') && <Button variant="outline" className="rounded-xl text-primary" disabled={stage !== 'reveal'} onClick={() => setAnswerMediaStartedAt(Date.now())}><Play className="mr-2 h-4 w-4 fill-current" />Play answer media for players</Button>}
               {question.hostNotes?.trim() && <div className="space-y-2"><h3 className="text-sm font-semibold text-primary">Host notes</h3><p className="whitespace-pre-wrap break-words text-sm leading-6">{question.hostNotes}</p></div>}
             </section>
-            <TeamAnswers teams={teams} answers={answers[runId] || []} points={fullPoints} onPointsChange={value => setPoints(previous => ({ ...previous, [runId]: value }))} onGrade={gradeAnswer} />
+            <TeamAnswers teams={teams} answers={answers[runId] || []} points={fullPoints} rightAnswer={question.answer} onGrade={gradeAnswer} />
             {stage === 'closed' && <p role="status" className="text-sm text-accent">Answers locked. Move to the next question to unlock them.</p>}
             {stage === 'reveal' && <p role="status" className="text-sm text-primary">Answer revealed to connected browser tabs.</p>}
           </div> : null}
           {question && stage !== 'lobby' && stage !== 'ended' && <div className="mt-7 flex flex-wrap gap-2 border-t border-border pt-5">
             {stage === 'question' && <Button variant="secondary" className="rounded-xl" onClick={() => setStage('closed')}>Close question</Button>}
-            {(stage === 'question' || stage === 'closed') && <Button className="rounded-xl" onClick={() => setStage('reveal')}>Reveal answer</Button>}
+            <Button className="rounded-xl" onClick={revealAnswer}>{stage === 'reveal' ? 'Reveal updated grades' : 'Reveal answer'}</Button>
             <Button variant="outline" className="rounded-xl" disabled={index === 0} onClick={() => changeQuestion(index - 1)}><ArrowLeft className="mr-2 h-4 w-4" /> Previous</Button>
             <Button variant="outline" className="rounded-xl" disabled={index === questions.length - 1} onClick={() => changeQuestion(index + 1)}>Next question <ArrowRight className="ml-2 h-4 w-4" /></Button>
             <Button variant="ghost" className="rounded-xl" onClick={resetQuestion}><RotateCcw className="mr-2 h-4 w-4" /> Replay</Button>
@@ -200,7 +213,7 @@ export default function Host() {
           <section className="panel p-5"><p className="eyebrow">ROOM CODE</p><div className="mt-3 flex items-center justify-between"><span className="display-font text-4xl font-bold tracking-[.15em] text-primary">{PREVIEW_ROOM}</span><Button variant="ghost" size="icon" aria-label="Copy room code" className="rounded-xl" onClick={copyCode}><Copy className="h-4 w-4" /></Button></div><p className="mt-3 text-xs text-muted-foreground">Connected across tabs in this browser only</p></section>
           <HostPlayers players={scoredTeams} />
           <Buzzer duration={duration} remaining={remaining} running={deadline !== null} countdownDuration={questionDuration} deadline={deadline} onChange={changeDuration} />
-          {activeGame && stage !== 'ended' && <section className="panel space-y-4 p-5"><h2 className="font-semibold">Round music</h2><p className="break-words text-xs text-muted-foreground">{activeGame.rounds[question.roundIndex].music?.name || 'No music for this round'}</p><Button variant="outline" className="w-full rounded-xl" onClick={() => music.toggleMusic(activeGame.rounds[question.roundIndex].music)}>{music.enabled ? 'Mute music' : 'Enable music'}</Button><label className="flex items-center gap-3 text-xs text-muted-foreground">Volume<input aria-label="Round music volume" type="range" min="0" max="1" step="0.05" value={music.volume} onChange={event => music.changeVolume(Number(event.target.value))} className="w-full accent-primary" /></label></section>}
+          {activeGame && stage !== 'ended' && <section className="panel space-y-4 p-5"><h2 className="font-semibold">Round music</h2><Button variant="outline" className="w-full rounded-xl" onClick={() => music.toggleMusic(activeGame.rounds[question.roundIndex].music)}>{music.enabled ? 'Mute music' : 'Enable music'}</Button><label className="flex items-center gap-3 text-xs text-muted-foreground">Volume<input aria-label="Round music volume" type="range" min="0" max="1" step="0.05" value={music.volume} onChange={event => music.changeVolume(Number(event.target.value))} className="w-full accent-primary" /></label></section>}
           <Button variant="outline" className="w-full rounded-xl border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive" disabled={stage === 'lobby' || stage === 'ended'} onClick={() => setConfirmEnd(true)}>End game</Button>
         </aside>
       </div>

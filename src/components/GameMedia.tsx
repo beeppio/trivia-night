@@ -13,8 +13,7 @@ function MediaItem({ media }: { media: GameMedia }) {
   }, [media.file]);
   if (!url) return null;
   return <div className="min-w-0 space-y-2">
-    {media.kind === 'image' ? <img src={url} alt={media.name} className="max-h-64 w-auto rounded-xl object-contain" /> : media.kind === 'audio' ? <audio src={url} controls preload="metadata" className="w-full" /> : media.kind === 'video' ? <video src={url} controls preload="metadata" className="max-h-72 w-full rounded-xl" /> : <a href={url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 rounded-xl bg-secondary px-4 py-3 text-sm text-primary"><FileText className="h-4 w-4" /> Open PDF</a>}
-    <p className="break-all text-xs text-muted-foreground">{media.name}</p>
+    {media.kind === 'image' ? <img src={url} alt="Attached illustration" className="max-h-64 w-auto rounded-xl object-contain" /> : media.kind === 'audio' ? <audio src={url} controls preload="metadata" className="w-full" /> : media.kind === 'video' ? <video src={url} controls preload="metadata" className="max-h-72 w-full rounded-xl" /> : <a href={url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 rounded-xl bg-secondary px-4 py-3 text-sm text-primary"><FileText className="h-4 w-4" /> Open PDF</a>}
   </div>;
 }
 

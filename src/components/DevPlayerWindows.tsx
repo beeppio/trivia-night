@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { SessionQuestion } from '@/components/SessionQuestion';
 import type { Team } from '@/components/TeamAnswers';
 import type { PlayerSubmission, PublicSession } from '@/hooks/use-local-session';
+import { PlayerGameView } from '@/components/PlayerGameView';
 
 function PlayerWindow({ team, session, onSubmit, onMinimize, order, onFocus }: { team: Team; session: PublicSession | null; onSubmit: (submission: PlayerSubmission) => void; onMinimize: () => void; order: number; onFocus: () => void }) {
   const [position, setPosition] = useState({ x: Math.max(8, window.innerWidth - 380 - (order % 4) * 25), y: 80 + (order % 4) * 25 });
@@ -26,7 +27,7 @@ function PlayerWindow({ team, session, onSubmit, onMinimize, order, onFocus }: {
       <Gamepad2 className="h-4 w-4 text-primary" /><h2 className="flex-1 text-sm font-semibold">{team.name}</h2><GripHorizontal aria-hidden="true" className="h-4 w-4 text-muted-foreground" /><Button variant="ghost" size="icon" aria-label={`Minimize ${team.name}`} className="h-7 w-7 rounded-lg hover:bg-primary/15" onClick={onMinimize}><Minus className="h-4 w-4" /></Button>
     </div>
     <div className="max-h-[min(65svh,600px)] overflow-y-auto px-4">
-      {session ? <SessionQuestion key={session.runId} session={session} player onSubmit={answer => onSubmit({ runId: session.runId, teamId: team.id, name: team.name, answer })} /> : <p className="py-12 text-center text-sm text-muted-foreground">Waiting for the host to start a game.</p>}
+      <PlayerGameView profile={team} session={session} onSubmit={answer => { if (session) onSubmit({ runId: session.runId, teamId: team.id, name: team.name, answer }); }} />
     </div>
   </div>;
 }

@@ -4,6 +4,7 @@ import { ArrowLeft, ArrowRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { PartyLayout, PreviewNotice } from '@/components/PartyLayout';
 import { PREVIEW_ROOM } from '@/lib/preview-data';
 
@@ -12,11 +13,20 @@ export default function Join() {
   const [code, setCode] = useState('');
   const [nickname, setNickname] = useState('');
   const [error, setError] = useState('');
+  const [avatar, setAvatar] = useState('');
+  const uploadAvatar = (file?: File) => {
+    if (!file) return;
+    if (!['image/png', 'image/jpeg', 'image/webp'].includes(file.type) || file.size > 2 * 1024 * 1024) { setError('Choose a PNG, JPG, or WebP profile picture under 2 MB.'); return; }
+    const reader = new FileReader();
+    reader.onload = () => { setAvatar(String(reader.result)); setError(''); };
+    reader.readAsDataURL(file);
+  };
   const submit = (event: FormEvent) => {
     event.preventDefault();
     if (code !== PREVIEW_ROOM) { setError(`Live rooms are not connected yet. Use ${PREVIEW_ROOM} to explore the preview.`); return; }
     if (!nickname.trim()) { setError('Enter a nickname to continue.'); return; }
     sessionStorage.setItem('quiz-social-preview-nickname', nickname.trim());
+    sessionStorage.setItem('285-avatar', avatar);
     navigate(`/player/${code}`);
   };
   return <PartyLayout>
@@ -35,6 +45,7 @@ export default function Join() {
             <Label htmlFor="nickname">Your nickname</Label>
             <Input id="nickname" value={nickname} onChange={e => setNickname(e.target.value)} maxLength={24} required placeholder="Nickname" autoComplete="nickname" className="h-12 rounded-xl bg-background" />
           </div>
+          <div className="flex items-center gap-4"><Avatar className="h-16 w-16 rounded-2xl"><AvatarImage src={avatar} alt="Profile preview" className="object-cover" /><AvatarFallback className="rounded-2xl bg-primary/15 text-primary">{nickname.slice(0, 2).toUpperCase() || '?'}</AvatarFallback></Avatar><label className="cursor-pointer text-sm text-primary underline underline-offset-4">Add profile picture<input type="file" accept="image/png,image/jpeg,image/webp" aria-label="Upload profile picture" className="sr-only" onChange={event => uploadAvatar(event.target.files?.[0])} /></label></div>
           {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
           <Button type="submit" className="party-button w-full">Enter preview lobby <ArrowRight className="ml-2 h-4 w-4" /></Button>
         </form>
